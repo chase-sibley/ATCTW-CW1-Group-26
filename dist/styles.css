@@ -1,0 +1,532 @@
+/*
+ * Basic functional layout only.
+ * Ted owns the final interface design and can replace this stylesheet.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: white;
+  color: black;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 250px minmax(500px, 1fr) 300px;
+  min-height: 100vh;
+}
+
+.control-panel,
+.insight-panel {
+  overflow-y: auto;
+  border: 1px solid #777;
+}
+
+.panel-section,
+.insight-panel {
+  padding: 12px;
+}
+
+.panel-section + .panel-section {
+  border-top: 1px solid #999;
+}
+
+.section-heading {
+  margin-bottom: 10px;
+}
+
+.section-heading.inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: 22px;
+}
+
+h2 {
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.eyebrow,
+.formula-label,
+.set-title {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.field-grid label,
+.wide-field {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.wide-field {
+  margin-top: 8px;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 5px;
+  border: 1px solid #777;
+  border-radius: 0;
+  background: white;
+}
+
+.button,
+.tool-button,
+.text-button,
+.view-controls button,
+.dispatch-button,
+.icon-button {
+  padding: 6px 9px;
+  border: 1px solid #555;
+  border-radius: 0;
+  background: #eee;
+  color: black;
+}
+
+.button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.text-button {
+  padding: 3px 7px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.tool-button.active {
+  background: #ccc;
+  outline: 2px solid #333;
+}
+
+.helper,
+.field-error,
+.comparison-note,
+.insight-header p,
+.step-card p {
+  margin: 7px 0 0;
+  font-size: 11px;
+}
+
+.field-error {
+  min-height: 14px;
+  color: #b00000;
+}
+
+.count-badge,
+.fair-badge {
+  border: 1px solid #777;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.parcel-list {
+  max-height: 180px;
+  margin: 0;
+  padding-left: 20px;
+  overflow-y: auto;
+}
+
+.parcel-list li {
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.parcel-icon {
+  margin-right: 5px;
+  font-weight: bold;
+}
+
+.parcel-list small,
+.parcel-state {
+  margin-left: 4px;
+}
+
+.parcel-list li.delivered {
+  text-decoration: line-through;
+}
+
+.map-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  font-size: 11px;
+}
+
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.legend-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.legend-icon.depot rect {
+  fill: #d33;
+  stroke: #700;
+  stroke-width: 2;
+}
+
+.legend-icon.house path {
+  fill: #ffd84d;
+  stroke: #8a6d00;
+  stroke-width: 2;
+}
+
+.legend-icon.junction circle {
+  fill: white;
+  stroke: #555;
+  stroke-width: 3;
+}
+
+.legend-icon.route line {
+  stroke: blue;
+  stroke-width: 5;
+}
+
+.view-controls {
+  display: flex;
+  gap: 3px;
+}
+
+.map-stage {
+  position: relative;
+  flex: 1;
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid black;
+  background: white;
+}
+
+#map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  color: #ddd;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+#map.panning {
+  cursor: grabbing;
+}
+
+#map[data-tool="connect"] {
+  cursor: default;
+}
+
+#map[data-tool="connect"] .node-group {
+  cursor: crosshair;
+}
+
+#map[data-tool="connect"] .node-group:hover .node-halo {
+  fill: rgba(0, 0, 255, .08);
+  stroke: blue;
+}
+
+.grid-fill {
+  pointer-events: none;
+}
+
+.road {
+  stroke: #777;
+  stroke-width: 3;
+}
+
+.road-label-bg {
+  fill: white;
+  stroke: #777;
+}
+
+.road-label {
+  fill: black;
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.road.route {
+  stroke: blue;
+  stroke-width: 6;
+}
+
+.node-group {
+  cursor: pointer;
+}
+
+.node-halo {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 5;
+}
+
+.node-shape {
+  fill: white;
+  stroke: #444;
+  stroke-width: 3;
+}
+
+.node-group[data-type="house"] .node-shape {
+  fill: #ffd84d;
+  stroke: #8a6d00;
+}
+
+.node-group[data-type="depot"] .node-shape {
+  fill: #d33;
+  stroke: #700;
+}
+
+.node-group[data-state="open"] .node-halo {
+  fill: #fff3a3;
+  stroke: #b88a00;
+}
+
+.node-group[data-state="closed"] .node-halo {
+  fill: #cddcff;
+  stroke: blue;
+}
+
+.node-group[data-state="current"] .node-halo {
+  fill: #ffcaca;
+  stroke: red;
+}
+
+.node-group[data-selected="true"] .node-halo {
+  fill: #c9f2c9;
+  stroke: green;
+}
+
+.node-label {
+  fill: black;
+  paint-order: stroke;
+  stroke: white;
+  stroke-width: 3px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.van-body {
+  fill: white;
+  stroke: red;
+  stroke-width: 3;
+}
+
+.van-window {
+  fill: #cddcff;
+}
+
+.van-wheel {
+  fill: black;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.empty-state[hidden] {
+  display: none;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 8px;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.speed-control input {
+  flex: 1;
+}
+
+.formula-card,
+.step-card,
+.set-card,
+.comparison-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #777;
+}
+
+.formula {
+  margin: 5px 0;
+  font-size: 20px;
+}
+
+.score-row,
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.score-row span {
+  display: grid;
+  border: 1px solid #999;
+  padding: 4px;
+  text-align: center;
+}
+
+.step-card {
+  display: grid;
+  grid-template-columns: 35px 1fr;
+  gap: 8px;
+}
+
+.step-index {
+  border: 1px solid #555;
+  padding: 6px;
+  text-align: center;
+}
+
+.set-card > div + div {
+  margin-top: 9px;
+}
+
+.set-values {
+  min-height: 22px;
+  border: 1px solid #999;
+  padding: 4px;
+  font-size: 11px;
+}
+
+.set-values span + span::before {
+  content: ", ";
+}
+
+.set-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border: 1px solid black;
+}
+
+.set-dot.open {
+  background: yellow;
+}
+
+.set-dot.closed {
+  background: blue;
+}
+
+.comparison-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.metric-card {
+  border: 1px solid #777;
+  padding: 7px;
+}
+
+.algorithm-mark {
+  font-weight: bold;
+}
+
+.metric-card > strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.metric-card dl {
+  margin: 7px 0 0;
+}
+
+.metric-card dl div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.metric-card dd {
+  margin: 0;
+}
+
+@media (max-width: 1050px) {
+  .workspace {
+    display: block;
+  }
+
+  .control-panel,
+  .insight-panel {
+    overflow: visible;
+  }
+
+  .map-panel {
+    min-height: 600px;
+  }
+}

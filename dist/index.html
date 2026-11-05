@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive A* postal delivery route simulator with a Dijkstra comparison.">
+    <title>A* Postal Route Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main id="main" class="workspace">
+      <aside class="control-panel" aria-label="Map and simulation controls">
+        <section class="panel-section">
+          <div class="section-heading">
+            <span class="eyebrow">Map input</span>
+            <h2>Map settings</h2>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span>Nodes</span>
+              <input id="nodeCount" type="number" min="2" value="14">
+            </label>
+            <label>
+              <span>Roads</span>
+              <input id="edgeCount" type="number" min="1" value="22">
+            </label>
+            <label>
+              <span>Addresses</span>
+              <input id="addressCount" type="number" min="1" value="5">
+            </label>
+            <label>
+              <span>Seed</span>
+              <input id="seed" type="text" value="exeter-01" spellcheck="false">
+            </label>
+          </div>
+
+          <label class="wide-field">
+            <span>Road weights</span>
+            <select id="weightMode">
+              <option value="distance">Distance based</option>
+              <option value="random">Random cost</option>
+            </select>
+          </label>
+
+          <button class="button button-primary" id="generateButton" type="button">
+            <span>Reload map</span>
+          </button>
+          <p class="field-error" id="formError" role="alert"></p>
+        </section>
+
+        <section class="panel-section compact">
+          <div class="section-heading inline">
+            <div>
+              <span class="eyebrow">Manual editing</span>
+              <h2>Drawing tools</h2>
+            </div>
+            <button class="text-button" id="clearButton" type="button">Clear</button>
+          </div>
+          <div class="tool-grid" role="group" aria-label="Drawing tools">
+            <button class="tool-button" data-tool="junction" type="button"><span>＋</span> Junction</button>
+            <button class="tool-button" data-tool="house" type="button"><span>⌂</span> House</button>
+            <button class="tool-button" data-tool="depot" type="button"><span>◆</span> Depot</button>
+            <button class="tool-button" data-tool="connect" type="button"><span>—</span> Road</button>
+          </div>
+          <p class="helper" id="toolHelp">Select a tool, then click the map.</p>
+        </section>
+
+        <section class="panel-section compact parcel-section">
+          <div class="section-heading inline">
+            <div>
+              <span class="eyebrow">Delivery list</span>
+              <h2>Parcels</h2>
+            </div>
+            <span class="count-badge" id="parcelCount">0</span>
+          </div>
+          <ol class="parcel-list" id="parcelList"></ol>
+        </section>
+      </aside>
+
+      <section class="map-panel" aria-label="Road network visualisation">
+        <div class="map-toolbar">
+          <div class="legend" aria-label="Map legend">
+            <span>
+              <svg class="legend-icon depot" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5" transform="rotate(45 10 10)"></rect></svg>
+              Depot
+            </span>
+            <span>
+              <svg class="legend-icon house" viewBox="0 0 24 24" aria-hidden="true"><path d="M 3 11 L 12 3 L 21 11 L 18 11 L 18 21 L 6 21 L 6 11 Z"></path></svg>
+              Address
+            </span>
+            <span>
+              <svg class="legend-icon junction" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle></svg>
+              Junction
+            </span>
+            <span>
+              <svg class="legend-icon route" viewBox="0 0 24 20" aria-hidden="true"><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+              Route
+            </span>
+          </div>
+          <div class="view-controls" aria-label="Map view controls">
+            <button id="zoomOutButton" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+            <button id="fitViewButton" type="button">Fit</button>
+            <button id="zoomInButton" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+          </div>
+        </div>
+        <div class="map-stage" id="mapStage">
+          <svg id="map" viewBox="0 0 1000 620" role="img" aria-labelledby="mapTitle mapDescription">
+            <title id="mapTitle">Postal delivery road network</title>
+            <desc id="mapDescription">A weighted graph showing a depot, delivery addresses, junctions and roads.</desc>
+            <defs>
+              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" stroke-width="1"></path>
+              </pattern>
+              <filter id="vanShadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="6" stdDeviation="5" flood-opacity="0.32"></feDropShadow>
+              </filter>
+            </defs>
+            <g id="viewportLayer">
+              <rect id="gridFill" class="grid-fill" width="1000" height="620" fill="url(#grid)"></rect>
+              <g id="edgeLayer"></g>
+              <g id="routeLayer"></g>
+              <g id="nodeLayer"></g>
+              <g id="vanLayer"></g>
+            </g>
+          </svg>
+          <div class="empty-state" id="emptyState" hidden>
+            <span>⌁</span>
+            <strong>No network yet</strong>
+            <p>Load the demo map or draw one by hand.</p>
+          </div>
+        </div>
+
+        <div class="transport" aria-label="Simulation controls">
+          <button class="dispatch-button" id="runButton" type="button">
+            <span class="play-icon" aria-hidden="true">▶</span>
+            <span>Dispatch van</span>
+          </button>
+          <button class="icon-button" id="pauseButton" type="button" aria-label="Pause simulation" title="Pause">Ⅱ</button>
+          <button class="icon-button" id="resetButton" type="button" aria-label="Reset simulation" title="Reset">↺</button>
+          <label class="speed-control">
+            <span>Replay speed</span>
+            <input id="speed" type="range" min="1" max="5" value="3">
+            <output id="speedOutput">1×</output>
+          </label>
+        </div>
+      </section>
+
+      <aside class="insight-panel" aria-label="Algorithm explanation and results">
+        <section class="insight-header">
+          <span class="eyebrow">Algorithm</span>
+          <h1>A* search</h1>
+          <p>The panel updates as A* explores the graph and calculates the delivery route.</p>
+        </section>
+
+        <section class="formula-card">
+          <span class="formula-label">Priority score</span>
+          <div class="formula"><em>f</em>(n) = <em>g</em>(n) + <em>h</em>(n)</div>
+          <div class="score-row">
+            <span><i>g</i><strong id="gScore">—</strong><small>travelled</small></span>
+            <span><i>h</i><strong id="hScore">—</strong><small>estimated</small></span>
+            <span><i>f</i><strong id="fScore">—</strong><small>total score</small></span>
+          </div>
+        </section>
+
+        <section class="step-card" aria-live="polite">
+          <div class="step-index" id="stepIndex">00</div>
+          <div>
+            <span class="eyebrow" id="stepPhase">Waiting</span>
+            <h2 id="stepTitle">Build a map to begin</h2>
+            <p id="stepDescription">A* will expose its open set, closed set and chosen route here.</p>
+          </div>
+        </section>
+
+        <section class="set-card">
+          <div>
+            <span class="set-title"><i class="set-dot open"></i>Open set</span>
+            <div class="set-values" id="openSet"><span>—</span></div>
+          </div>
+          <div>
+            <span class="set-title"><i class="set-dot closed"></i>Closed set</span>
+            <div class="set-values" id="closedSet"><span>—</span></div>
+          </div>
+        </section>
+
+        <section class="comparison-section">
+          <div class="section-heading inline">
+            <div>
+              <span class="eyebrow">Comparison</span>
+              <h2>A* vs Dijkstra</h2>
+            </div>
+            <span class="fair-badge">Same stops</span>
+          </div>
+          <div class="comparison-grid">
+            <article class="metric-card astar">
+              <div><span class="algorithm-mark">A*</span><small>informed search</small></div>
+              <strong id="astarCost">—</strong><span>route cost</span>
+              <dl>
+                <div><dt>Explored</dt><dd id="astarExplored">—</dd></div>
+                <div><dt>Runtime</dt><dd id="astarTime">—</dd></div>
+              </dl>
+            </article>
+            <article class="metric-card dijkstra">
+              <div><span class="algorithm-mark">D</span><small>zero heuristic</small></div>
+              <strong id="dijkstraCost">—</strong><span>route cost</span>
+              <dl>
+                <div><dt>Explored</dt><dd id="dijkstraExplored">—</dd></div>
+                <div><dt>Runtime</dt><dd id="dijkstraTime">—</dd></div>
+              </dl>
+            </article>
+          </div>
+          <p class="comparison-note" id="comparisonNote">Matching route costs are expected. Compare explored nodes and runtime.</p>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
