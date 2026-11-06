@@ -1,59 +1,15 @@
-export function getMap(settings = {}) {
-  void settings;
+/*
+  SPEC (from the original file, kept for reference)
 
-  /*
-  =============================================================================
-  SAM: RANDOM MAP GENERATION GOES HERE
-  =============================================================================
+  INPUT (settings): nodeCount, edgeCount, addressCount, seed, weightMode ("distance" | "random")
 
-  Replace the final `return createDemoMap();` with your generator.
+  OUTPUT:
+    nodes:   [{ id, x, y, type: "depot" | "house" | "junction", label }]
+    edges:   [{ id, from, to, weight (> 0), directed }]
+    parcels: [{ id, contents, destination (house id) }]
+    bounds:  { width, height }
 
-  INPUT (`settings`)
-
-    {
-      nodeCount: number,
-      edgeCount: number,
-      addressCount: number,
-      seed: string,
-      weightMode: "distance" | "random"
-    }
-
-  REQUIRED OUTPUT
-
-    {
-      nodes: [
-        {
-          id: string,
-          x: number,
-          y: number,
-          type: "depot" | "house" | "junction",
-          label: string
-        }
-      ],
-      edges: [
-        {
-          id: string,
-          from: string,
-          to: string,
-          weight: positive number,
-          directed: boolean
-        }
-      ],
-      parcels: [
-        {
-          id: string,
-          contents: string,
-          destination: house node id
-        }
-      ],
-      bounds: {
-        width: number,
-        height: number
-      }
-    }
-
-  RULES THE REST OF THE WEBSITE EXPECTS
-
+  RULES:
     - Exactly one node has type "depot".
     - Every node id and edge id is unique.
     - Every edge references two existing node ids.
@@ -62,96 +18,169 @@ export function getMap(settings = {}) {
     - The graph should be connected from the depot.
     - Coordinates should fit inside bounds.
     - Increase bounds for large maps; the UI already supports pan and zoom.
+*/
 
-  IMPLEMENTATION AREA
+export function getMap(settings = {}) {
+  const random = makeRandom(settings.seed);
 
+  // Read the input, with a fallback if a value is missing
+  const nodeCount    = settings.nodeCount    ?? 10;
+  const edgeCount    = settings.edgeCount    ?? 15;
+  const addressCount = settings.addressCount ?? 3;
+  const weightMode   = settings.weightMode   ?? "distance";
 
+  // Safety checks
+  const houses = Math.min(addressCount, nodeCount - 1); // leave room for the depot
+  const roads  = Math.max(edgeCount, nodeCount - 1);    // enough roads to connect everything
 
+    // Map size: grows with the number of nodes, never smaller than 1000 x 620
+  const width  = Math.round(Math.max(1000, Math.sqrt(nodeCount) * 150));
+  const height = Math.round(width * 0.62);
+  const bounds = { width, height };
 
+  // Place the nodes
+  const nodes = placeNodes(nodeCount, houses, bounds, random);
+    // Connect the roads
+  const edges = connectRoads(nodes);
+  addExtraRoads(nodes, edges, roads);
 
+  // Give every road its cost
+  addWeights(nodes, edges, weightMode, random);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  // One parcel for every house
+  const parcels = makeParcels(nodes, random);
+  
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  =============================================================================
-  END OF SAM'S GENERATION AREA
-  =============================================================================
-  */
-
-  return createDemoMap();
+    return { bounds, nodes, edges, parcels };
 }
 
-function createDemoMap() {
-  return {
-    bounds: { width: 1000, height: 620 },
-    nodes: [
-      { id: "depot", x: 110, y: 310, type: "depot", label: "Depot" },
-      { id: "j1", x: 290, y: 180, type: "junction", label: "J1" },
-      { id: "j2", x: 290, y: 440, type: "junction", label: "J2" },
-      { id: "house_1", x: 500, y: 100, type: "house", label: "House 1" },
-      { id: "j3", x: 500, y: 310, type: "junction", label: "J3" },
-      { id: "house_2", x: 500, y: 520, type: "house", label: "House 2" },
-      { id: "j4", x: 720, y: 190, type: "junction", label: "J4" },
-      { id: "j5", x: 720, y: 430, type: "junction", label: "J5" },
-      { id: "house_3", x: 900, y: 310, type: "house", label: "House 3" }
-    ],
-    edges: [
-      { id: "e1", from: "depot", to: "j1", weight: 22, directed: false },
-      { id: "e2", from: "depot", to: "j2", weight: 22, directed: false },
-      { id: "e3", from: "j1", to: "house_1", weight: 24, directed: false },
-      { id: "e4", from: "j1", to: "j3", weight: 25, directed: false },
-      { id: "e5", from: "j2", to: "j3", weight: 25, directed: false },
-      { id: "e6", from: "j2", to: "house_2", weight: 24, directed: false },
-      { id: "e7", from: "house_1", to: "j4", weight: 24, directed: false },
-      { id: "e8", from: "j3", to: "j4", weight: 24, directed: false },
-      { id: "e9", from: "j3", to: "j5", weight: 24, directed: false },
-      { id: "e10", from: "house_2", to: "j5", weight: 24, directed: false },
-      { id: "e11", from: "j4", to: "house_3", weight: 22, directed: false },
-      { id: "e12", from: "j5", to: "house_3", weight: 22, directed: false }
-    ],
-    parcels: [
-      { id: "parcel_1", contents: "Books", destination: "house_1" },
-      { id: "parcel_2", contents: "Medicine", destination: "house_2" },
-      { id: "parcel_3", contents: "Shoes", destination: "house_3" }
-    ]
+// Gives every node a random x/y and a type: 1 depot, then houses, then junctions.
+function placeNodes(nodeCount, houses, bounds, random) {
+  const margin = 50; // keep nodes away from the edge of the map
+  const minGap = 60; // try to keep nodes at least this far apart
+  const nodes = [];
+
+  for (let i = 0; i < nodeCount; i++) {
+    // 1. Pick a random spot. If it's too close to another node, try again (up to 30 times).
+    let x, y;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      x = Math.round(margin + random() * (bounds.width - 2 * margin));
+      y = Math.round(margin + random() * (bounds.height - 2 * margin));
+      const tooClose = nodes.some((n) => Math.hypot(n.x - x, n.y - y) < minGap);
+      if (!tooClose) break;
+    }
+
+    // 2. Decide what kind of node it is.
+    if (i === 0) {
+      nodes.push({ id: "depot", x, y, type: "depot", label: "Depot" });
+    } else if (i <= houses) {
+      nodes.push({ id: `house_${i}`, x, y, type: "house", label: `House ${i}` });
+    } else {
+      const j = i - houses;
+      nodes.push({ id: `j${j}`, x, y, type: "junction", label: `J${j}` });
+    }
+  }
+
+  return nodes;
+}
+
+// Joins every node into one network: each node connects to the closest node made before it.
+function connectRoads(nodes) {
+  const edges = [];
+
+  for (let i = 1; i < nodes.length; i++) {
+    const node = nodes[i];
+
+    // Find the closest node among the ones already connected (nodes 0 to i-1)
+    let closest = nodes[0];
+    for (let k = 1; k < i; k++) {
+      if (distance(node, nodes[k]) < distance(node, closest)) closest = nodes[k];
+    }
+
+    edges.push({ id: `e${edges.length + 1}`, from: closest.id, to: node.id, directed: false });
+  }
+
+  return edges;
+}
+
+// Adds the shortest missing roads until there are `roads` in total.
+function addExtraRoads(nodes, edges, roads) {
+  // 1. Remember which pairs of nodes already have a road
+  const hasRoad = new Set(edges.map((e) => roadKey(e.from, e.to)));
+
+  // 2. List every pair of nodes that doesn't have a road yet, with its length
+  const options = [];
+  for (let i = 0; i < nodes.length; i++) {
+    for (let k = i + 1; k < nodes.length; k++) {
+      if (!hasRoad.has(roadKey(nodes[i].id, nodes[k].id))) {
+        options.push({ a: nodes[i], b: nodes[k], length: distance(nodes[i], nodes[k]) });
+      }
+    }
+  }
+
+  // 3. Put the shortest ones first
+  options.sort((p, q) => p.length - q.length);
+
+  // 4. Add roads until we hit the target (or run out of pairs)
+  for (const option of options) {
+    if (edges.length >= roads) break;
+    edges.push({ id: `e${edges.length + 1}`, from: option.a.id, to: option.b.id, directed: false });
+  }
+
+  return edges;
+}
+
+// The same label for a road whichever way round it's written: "j1|j2" for j1-j2 and j2-j1
+function roadKey(a, b) {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+// Sets edge.weight on every road: its length ("distance") or a random 1-100 ("random").
+function addWeights(nodes, edges, weightMode, random) {
+  // Look up a node by its id, e.g. byId["j3"]
+  const byId = {};
+  for (const node of nodes) byId[node.id] = node;
+
+  for (const edge of edges) {
+    if (weightMode === "random") {
+      edge.weight = 1 + Math.floor(random() * 100);
+    } else {
+      const length = distance(byId[edge.from], byId[edge.to]);
+      edge.weight = Math.max(1, Math.round(length / 10));
+    }
+  }
+}
+
+// Makes one parcel for each house, with random contents.
+function makeParcels(nodes, random) {
+  const contentsList = ["Books", "Medicine", "Shoes", "Groceries", "Laptop", "Flowers", "Toys", "Clothes"];
+  const parcels = [];
+
+  for (const node of nodes) {
+    if (node.type !== "house") continue; // skip the depot and junctions
+
+    const contents = contentsList[Math.floor(random() * contentsList.length)];
+    parcels.push({ id: `parcel_${parcels.length + 1}`, contents, destination: node.id });
+  }
+
+  return parcels;
+}
+
+// Straight-line distance between two nodes
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+
+// Same seed in => same numbers out. Each call to random() gives 0 to 1.
+function makeRandom(seed = "default") {
+  let n = 0;
+  for (const ch of String(seed)) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+
+  return function random() {
+    n = (n * 1664525 + 1013904223) >>> 0;
+    return n / 4294967296;
   };
 }
+
