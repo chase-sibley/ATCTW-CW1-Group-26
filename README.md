@@ -16,6 +16,9 @@ A delivery van needs to find the most optimal and fastest route to visit each ad
 ### Installation
 ### How to access
 ### How to run tests
+Tests are run using Node (https://nodejs.org).
+In terminal, run:
+> node --test tests/*.test.js
 
 ## The Algorithm
 ### Pseudocode & Explaination
@@ -27,6 +30,7 @@ A delivery van needs to find the most optimal and fastest route to visit each ad
 ### Limitations
 ### Dependencies
 ### Third Party Resources
+Node: https://nodejs.org
 
 ## Member Statements
 ### Oliver Methold
@@ -34,5 +38,7 @@ A delivery van needs to find the most optimal and fastest route to visit each ad
 ### Alistair Bishop
 ### Ted Turner
 ### Chase Sibley
+I was in charge of testing and communicating with team members what needed changing. Tests cover the whole scope of the website and
+the functionality of each algorithm.
 
 ## GenAI use
