@@ -17,7 +17,7 @@ test("Both algorithms and FloydWarshall oracle agree on every pair for 300 rando
 
         const nodeCount = 5 + (seed % 25);
 
-        const graph = generated(`prop-${seed}`, nodeCount, nodeCount + (seed % 20), Math.min(4, nodeCount - 1), mode);
+        const graph = generated(`both${seed}`, nodeCount, nodeCount + (seed % 20), Math.min(4, nodeCount - 1), mode);
 
         const truth = floydWarshall(graph);
 
@@ -62,7 +62,7 @@ test("A* agrees with the oracle on sparse/disconnected graphs", () => {
 
     for (let seed = 1; seed <= 150; seed++) {
 
-        const graph = generated(`dir-${seed}`, 15, 15, 3, "random");
+        const graph = generated(`disconnect${seed}`, 15, 15, 3, "random");
 
         graph.edges.forEach((e, i) => {if (i % 3 === 0) e.directed = true}); // Make some roads one way to randomise
 
@@ -84,7 +84,7 @@ test("Heuristic is admissible", () => {
 
     for (let seed = 1; seed <= 60; seed++) {
 
-        const graph = generated(`con-${seed}`, 18, 28, 4, MODES[seed % 2]);
+        const graph = generated(`admissible${seed}`, 18, 28, 4, MODES[seed % 2]);
 
         const scale = admissibleHeuristicScale(graph);
 
@@ -107,7 +107,7 @@ test("Heuristic is consistent", () => {
 
     for (let seed = 1; seed <= 60; seed++) {
 
-        const graph = generated(`con-${seed}`, 18, 28, 4, MODES[seed % 2]);
+        const graph = generated(`consistent${seed}`, 18, 28, 4, MODES[seed % 2]);
 
         const scale = admissibleHeuristicScale(graph);
 
@@ -134,7 +134,7 @@ test("A* explores less nodes than Dijkstra", () => {
 
     for (let seed = 1; seed <= 200; seed++) {
 
-        const graph = generated(`cmp-${seed}`, 40, 70, 5, "distance");
+        const graph = generated(`less${seed}`, 40, 70, 5, "distance");
 
         const a = graph.nodes[0].id, b = graph.nodes[graph.nodes.length - 1].id;
 
@@ -170,7 +170,7 @@ test("validateGraph works for different variety of maps", () => {
 
     for (let seed = 1; seed <= 100; seed++) {
 
-        const graph = generated(`val${seed}`, 3 + (seed % 40), 5 + (seed % 60), 1 + (seed % 8), MODES[seed % 2]);
+        const graph = generated(`validate${seed}`, 3 + (seed % 40), 5 + (seed % 60), 1 + (seed % 8), MODES[seed % 2]);
 
         assert.deepEqual(validateGraph(graph), []);
 

@@ -22,22 +22,22 @@ for (const algorithm of BOTH) {
     // Test prefers cheaper path through more nodes
     test(`[${algorithm}] prefers cheaper multi-hop path over a costly direct edge`, () => {
 
-        const r = shortestPath(detour, "A", "D", {algorithm});
+        const path = shortestPath(detour, "A", "D", {algorithm});
 
-        assert.deepEqual(r.path, ["A", "B", "C", "D"]);
+        assert.deepEqual(path.path, ["A", "B", "C", "D"]);
 
-        assert.equal(r.cost, 6);
+        assert.equal(path.cost, 6);
 
     });
 
     // Test when start is equal to goal
     test(`[${algorithm}] start === goal gives 0 cost and single-node path`, () => {
 
-        const r = shortestPath(detour, "B", "B", {algorithm});
+        const path = shortestPath(detour, "B", "B", {algorithm});
 
-        assert.deepEqual(r.path, ["B"]);
+        assert.deepEqual(path.path, ["B"]);
 
-        assert.equal(r.cost, 0);
+        assert.equal(path.cost, 0);
 
     });
 
@@ -50,11 +50,11 @@ for (const algorithm of BOTH) {
             [["A", "B", 5]]
         );
 
-        const r = shortestPath(graph, "A", "C", {algorithm});
+        const path = shortestPath(graph, "A", "C", {algorithm});
 
-        assert.deepEqual(r.path, []);
+        assert.deepEqual(path.path, []);
 
-        assert.equal(r.cost, Infinity);
+        assert.equal(path.cost, Infinity);
 
     });
 
@@ -71,7 +71,6 @@ for (const algorithm of BOTH) {
 
     // Test that a one-way edge returns both costs correctly
     test(`[${algorithm}] directed edges are one-way`, () => {
-
 
         const graph = makeGraph(
             {A: [0, 0], B: [10, 0]},
@@ -106,11 +105,11 @@ for (const algorithm of BOTH) {
             [["A", "B", 5], ["B", "D", 5], ["A", "C", 5], ["C", "D", 5]]
         );
 
-        const r = shortestPath(graph, "A", "D", {algorithm});
+        const path = shortestPath(graph, "A", "D", {algorithm});
 
-        assert.equal(r.cost, 10);
+        assert.equal(path.cost, 10);
 
-        assert.equal(pathCost(graph, r.path), 10);
+        assert.equal(pathCost(graph, path.path), 10);
 
     });
 
@@ -120,11 +119,11 @@ for (const algorithm of BOTH) {
 
         const closed = {...detour, edges: detour.edges.filter((e) => !(e.from === "B" && e.to === "C"))};
 
-        const r = shortestPath(closed, "A", "D", {algorithm});
+        const path = shortestPath(closed, "A", "D", {algorithm});
 
-        assert.deepEqual(r.path, ["A", "D"]);
+        assert.deepEqual(path.path, ["A", "D"]);
 
-        assert.equal(r.cost, 10);
+        assert.equal(path.cost, 10);
 
     });
 
@@ -146,13 +145,13 @@ for (const algorithm of BOTH) {
     // Test that a path is fully valid
     test(`[${algorithm}] returned path is valid`, () => {
 
-        const r = shortestPath(detour, "A", "D", {algorithm});
+        const path = shortestPath(detour, "A", "D", {algorithm});
 
-        assert.equal(r.path[0], "A");
+        assert.equal(path.path[0], "A");
 
-        assert.equal(r.path.at(-1), "D");
+        assert.equal(path.path.at(-1), "D");
 
-        assert.equal(pathCost(detour, r.path), r.cost);
+        assert.equal(pathCost(detour, path.path), path.cost);
 
     });
 
@@ -191,15 +190,15 @@ test("Dijkstra uses a zero heuristic and A* uses a positive heuristic", () => {
 // Test the search log functionality
 test("Search Log: Closed set only grows, first step is the start, last step is the goal", () => {
 
-    const r = shortestPath(detour, "A", "D", {algorithm: "astar", captureLog: true});
+    const path = shortestPath(detour, "A", "D", {algorithm: "astar", captureLog: true});
 
-    assert.equal(r.searchLog[0].current, "A");
+    assert.equal(path.searchLog[0].current, "A");
 
-    assert.equal(r.searchLog.at(-1).current, "D");
+    assert.equal(path.searchLog.at(-1).current, "D");
 
-    for (let i = 1; i <r.searchLog.length; i++) {
+    for (let i = 1; i < path.searchLog.length; i++) {
 
-        assert.ok(r.searchLog[i].closedSet.length === r.searchLog[i - 1].closedSet.length + 1);
+        assert.ok(path.searchLog[i].closedSet.length === path.searchLog[i - 1].closedSet.length + 1);
 
     }
 
