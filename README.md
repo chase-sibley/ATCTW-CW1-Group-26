@@ -45,6 +45,9 @@ Different tests on the website included edge case testing; building the map does
 ### Results
 Automated tests: All pass
 
+Manuel testing: All pass
+ - One fixed issue was there was no maximum number of nodes, addresses, and roads.
+
 ## Acknowledgements
 ### Limitations
 ### Dependencies
@@ -75,7 +78,7 @@ the functionality of each algorithm.
 #### It gave me: 
 #### I used it for:
 
-### Chase Sibly:
+### Chase Sibley:
 #### I gave claude:
 The source code for the project
 #### It gave me: 
