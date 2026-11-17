@@ -47,9 +47,9 @@ the functionality of each algorithm.
 #### It gave me: How alistairs code works 
 #### I used it for: to help me desing how my code intergrates to alistairs
 
-#### I gave claude:
-#### It gave me: 
-#### I used it for:
+#### I gave claude: My code and "SyntaxError: Identifier 'getMap' has already been declared"
+#### It gave me: there was two fucntions called get map after i removemed the duplicate the same eroo happened again , claude pointed out it there was a fucntion call for return createDemoMap(); outside a fucntion.  
+#### I used it for: Fixed the bugged code and the script then ran 
 
 ### Alistair Bishop:
 #### I gave claude:
