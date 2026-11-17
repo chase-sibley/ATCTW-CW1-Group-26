@@ -42,3 +42,34 @@ I was in charge of testing and communicating with team members what needed chang
 the functionality of each algorithm.
 
 ## GenAI use
+### Sam Taylor - King:
+#### I gave claude:  to help me  break the generator into steps
+#### It gave me: How alistairs code works 
+#### I used it for: to help me desing how my code intergrates to alistairs
+
+#### I gave claude:
+#### It gave me: 
+#### I used it for:
+
+### Alistair Bishop:
+#### I gave claude:
+#### It gave me: 
+#### I used it for:
+
+### Chase Sibly:
+#### I gave claude:
+#### It gave me: 
+#### I used it for:
+
+
+### Ted Turner: 
+#### I gave claude:
+#### It gave me: 
+#### I used it for:
+
+
+### Oliver Methold:
+#### I gave claude:
+#### It gave me: 
+#### I used it for:
+
