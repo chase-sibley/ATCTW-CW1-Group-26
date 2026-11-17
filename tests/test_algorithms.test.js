@@ -202,7 +202,7 @@ test("Search Log: Closed set only grows, first step is the start, last step is t
 
     }
 
-    assert.equal(r.exploredCount, r.searchLog.length);
+    assert.equal(path.exploredCount, path.searchLog.length);
 
 });
 

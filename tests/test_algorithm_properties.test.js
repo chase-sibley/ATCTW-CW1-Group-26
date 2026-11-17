@@ -7,13 +7,13 @@ import {floydWarshall, pathCost, generated} from "./functions.js";
 const MODES = ["distance", "random"];
 
 
-test("Both algorithms and FloydWarshall oracle agree on every pair for 300 random maps", () => {
+test("Both algorithms and FloydWarshall agree on every pair for 300 random maps", () => {
 
     let pairsChecked = 0;
 
     for (let seed = 1; seed <= 300; seed++) {
 
-        const mode = MODES[seed % 2];
+        const mode = MODES[seed % 2]; // Alternate between distance and random
 
         const nodeCount = 5 + (seed % 25);
 
@@ -25,15 +25,15 @@ test("Both algorithms and FloydWarshall oracle agree on every pair for 300 rando
 
         for (let k = 0; k < 6; k++) {
 
-            const a = ids[(seed * 7 + k * 3) % ids.length];
+            const a = ids[(seed * 7 + k * 3) % ids.length]; // Pick random nodes
 
-            const b = ids[(seed * 11 + k * 5 + 1) % ids.length];
+            const b = ids[(seed * 11 + k * 5 + 1) % ids.length]; // Pick random nodes
 
-            const expected = truth(a, b);
+            const expected = truth(a, b); // Find shorest cost from a, b using Floyd Warshall
 
-            const astar = shortestPath(graph, a, b, {algorithm: "astar", captureLog: false});
+            const astar = shortestPath(graph, a, b, {algorithm: "astar", captureLog: false}); // Find shorest cost from a, b using A*
             
-            const dijk = shortestPath(graph, a, b, {algorithm: "dijkstra", captureLog: false});
+            const dijk = shortestPath(graph, a, b, {algorithm: "dijkstra", captureLog: false}); // Find shorest cost from a, b using Dijkstra
 
             assert.equal(astar.cost, expected);
 
@@ -58,7 +58,7 @@ test("Both algorithms and FloydWarshall oracle agree on every pair for 300 rando
 });
 
 
-test("A* agrees with the oracle on sparse/disconnected graphs", () => {
+test("A* agrees with the Floyd-Warshall on sparse/disconnected graphs", () => {
 
     for (let seed = 1; seed <= 150; seed++) {
 
@@ -70,15 +70,16 @@ test("A* agrees with the oracle on sparse/disconnected graphs", () => {
 
         for (const a of graph.nodes.slice(0, 5)) for (const b of graph.nodes.slice(5, 10)) {
 
-            const r = shortestPath(graph, a.id, b.id, {algorithm: "astar", captureLog: false});
+            const path = shortestPath(graph, a.id, b.id, {algorithm: "astar", captureLog: false});
 
-            assert.equal(r.cost, truth(a.id, b.id));
+            assert.equal(path.cost, truth(a.id, b.id));
 
         }
 
     }
 
 });
+
 
 test("Heuristic is admissible", () => {
 
@@ -166,11 +167,11 @@ test("A* will behave exactly like Dijkstra with 0 heuristic", () => {
 });
 
 
-test("validateGraph works for different variety of maps", () => {
+test("validateGraph() works for a different variety of maps", () => {
 
     for (let seed = 1; seed <= 100; seed++) {
 
-        const graph = generated(`validate${seed}`, 3 + (seed % 40), 5 + (seed % 60), 1 + (seed % 8), MODES[seed % 2]);
+        const graph = generated(`validate${seed}`, 3 + (seed % 40), 5 + (seed % 60), 1 + (seed % 8), MODES[seed % 2]); // random maps
 
         assert.deepEqual(validateGraph(graph), []);
 

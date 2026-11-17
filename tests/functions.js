@@ -77,6 +77,6 @@ export function pathCost(graph, path) {
 
 export function generated(seed, nodes = 20, edges = 30, addresses = 6, weightMode = "distance") {
 
-    return getMap({ seed, nodes, edges, addresses, weightMode });
+    return getMap({seed, nodes, edges, addresses, weightMode});
 
 }

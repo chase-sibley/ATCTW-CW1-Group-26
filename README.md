@@ -26,9 +26,24 @@ In terminal, run:
 
 ## Tests
 ### Tests covered
-### Unit Tests
+ - Algorithms are optimal and work as intended
+ - Properties of algorithms are met (A* is better than Dijkstra)
+ - Edge case handling
+ - Error handling
+ - Testing functions
+ - Testing how the algorithm deals with certain scenarios when delivering
+### Automated Tests
+The automated tests are ran using nodes and cover the different algorithms and functions used for the postal service website.
+Tests cover the properties of each algorithm and if they can find the correct and quickest route to a location effectively; the A* heuristic and priority queue; and testing a variety of maps with different special cases to see how the different functions handle it.
+What is expected is that:
+ - A* is always better (or equal to) Dijkstra's algorithm
+ - Edge cases are handled by either error handling or exception thrown
+ - All functions to help with delivering and finding the shortest route work properly
 ### Manual Testing
+The manual testing was done to make sure the experience for every user is satisfactory and to test if the website shows how the algorithms work. 
+Different tests on the website included edge case testing; building the map does not cause errors and is easy to use; testing the different buttons; and making sure no crashes can occur.
 ### Results
+Automated tests: All pass
 
 ## Acknowledgements
 ### Limitations
