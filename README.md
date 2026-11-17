@@ -25,6 +25,10 @@ In terminal, run:
 ### Time and Space Complexity
 
 ## Tests
+### Tests covered
+### Unit Tests
+### Manual Testing
+### Results
 
 ## Acknowledgements
 ### Limitations
@@ -58,9 +62,11 @@ the functionality of each algorithm.
 
 ### Chase Sibly:
 #### I gave claude:
+The source code for the project
 #### It gave me: 
+Types of tests with examples and how to run tests in JavaScript using Node
 #### I used it for:
-
+Writing and planning different tests for the alorithm and functions used for the project.
 
 ### Ted Turner: 
 #### I gave claude:
