@@ -45,8 +45,7 @@ Different tests on the website included edge case testing; building the map does
 ### Results
 Automated tests: All pass
 
-Manuel testing: All pass
- - One fixed issue was there was no maximum number of nodes, addresses, and roads.
+Manuel testing: All working and no known issues
 
 ## Acknowledgements
 ### Limitations
