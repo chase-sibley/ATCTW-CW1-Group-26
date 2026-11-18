@@ -48,7 +48,7 @@ The product runs in the browser and has no packages to install. You only need [N
 
 ### How to Access
 
-The product is deployed at https://atctw-group.vercel.app/ and needs no installation. The local version above works offline.
+The project is deployed at https://atctw-group.vercel.app/ and needs no installation. The local version above works offline.
 
 ### How to Run Tests
 
