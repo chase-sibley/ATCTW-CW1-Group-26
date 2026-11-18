@@ -44,7 +44,7 @@ The product runs in the browser and has no packages to install. You only need [N
    npm start
    ```
 
-3. Open http://127.0.0.1:4173 in a web browser.
+3. Open the local IP in a web browser.
 
 ### How to Access
 
