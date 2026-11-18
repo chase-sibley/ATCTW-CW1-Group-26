@@ -228,12 +228,6 @@ What is expected is that:
 
 ℹ duration_ms 710.2894
 
-
-
-- A\* is always better than (or equal to) Dijkstra's algorithm
-- Edge cases are handled by either error handling or an exception being thrown
-- All functions to help with delivering and finding the shortest route work properly
-
 ### Manual Testing
 
 The manual testing was done to make sure the experience for every user is satisfactory and to test if the website shows how the algorithms work.
