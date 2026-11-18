@@ -129,6 +129,22 @@ What is expected is that:
  - Edge cases are handled by either error handling or exception thrown
  - All functions to help with delivering and finding the shortest route work properly
 
+
+### Manual Testing
+
+The manual testing was done to make sure the experience for every user is satisfactory and to test if the website shows how the algorithms work.
+
+Different tests on the website included:
+
+- Edge case testing
+- Building the map does not cause errors and is easy to use
+- Testing the different buttons
+- Making sure no crashes can occur
+
+### Results
+
+**Automated tests:** 41 tests, all pass (`node --test tests/*.test.js`).
+
 ✔ Both algorithms and FloydWarshall agree on every pair for 300 random maps (396.4791ms)
 
 ✔ A* agrees with the Floyd-Warshall on sparse/disconnected graphs (104.3641ms)
@@ -228,21 +244,6 @@ What is expected is that:
 
 ℹ duration_ms 710.2894
 
-### Manual Testing
-
-The manual testing was done to make sure the experience for every user is satisfactory and to test if the website shows how the algorithms work.
-
-Different tests on the website included:
-
-- Edge case testing
-- Building the map does not cause errors and is easy to use
-- Testing the different buttons
-- Making sure no crashes can occur
-
-### Results
-
-**Automated tests:** 41 tests, all pass (`node --test tests/*.test.js`).
-
 | Test | Expected | Actual |
 | --- | --- | --- |
 | Cheaper route through more nodes (direct road costs 10, detour costs 6) | Path A, B, C, D with cost 6 | Matches |
@@ -264,7 +265,7 @@ A\* explores about 4 to 10 times fewer nodes, and the gap grows as the map gets 
 
 **Scaling with addresses:** planning 8 addresses on a 200-node map takes about 58 ms because every stop order is tried. At 9 addresses it switches to nearest-neighbour and takes about 6 ms.
 
-**Manual testing:** (write what you actually tested, and any bug you found)
+**Manual testing:** tested all buttons and experimented with the map building, ensuring that no bugs or errors could be found. No bugs were present.
 
 ---
 
