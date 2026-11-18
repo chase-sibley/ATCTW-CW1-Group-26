@@ -55,6 +55,16 @@ Node: https://nodejs.org
 
 ## Member Statements
 ### Oliver Methold
+I was the scrum master, responsible for planning, dividing the work, and coordinating the team through stand-ups and sprint reviews. I managed the the presentation slides and also contributed to quality assurance.
+### Sam Taylor-King
+I was in charge of the random map generator, it produces the map the simulator runs on and takes the users settings from the website such as number of nodes, and returns a map in the format. 
+### Alistair Bishop
+I was in charge of developing the editable map settings, all input surfaces on the site, functionality of the custom placement of junctions, roads, depots and houses, weight implementation for road distances, van logic and the implementation of the A* and Dijkstra simulations.
+### Ted Turner
+I was in charge of developing a user interface and implementing it into the source code.
+### Chase Sibley
+I was in charge of testing and communicating with team members what needed changing. Tests cover the whole scope of the website and
+the functionality of each algorithm.
 ### Sam Taylor-King
 I was in charge of the random map generator, it produces the map the simulator runs on and takes the users settings from the website such as number of nodes, and returns a map in the format. 
 ### Alistair Bishop
@@ -99,6 +109,11 @@ Researching practised UI behaviour from existing websites and how to intuitively
 
 ### Oliver Methold:
 #### I gave claude:
-#### It gave me: 
+Our project idea, team roles and the coursework brief, with prompts like "make a document for our group project", "check this against the mark scheme" and "is this allowed in AI-assisted modules".
+#### It gave me:
+A project plan doc covering features, data model, A* design, complexity, testing, sprint timeline, risks and limitations, plus a check against the mark scheme.
 #### I used it for:
+Planning the project, dividing work, tracking deadlines, and checking we met every marking criterion.
+#### How I checked it:
+Compared the plan against the brief myself and confirmed the complexity figures with our own tests.
 
