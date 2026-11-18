@@ -58,6 +58,7 @@ Node: https://nodejs.org
 ### Sam Taylor-King
 I was in charge of the random map generator, it produces the map the simulator runs on and takes the users settings from the website such as number of nodes, and returns a map in the format. 
 ### Alistair Bishop
+I was in charge of developing the editable map settings, all input surfaces on the site, functionality of the custom placement of junctions, roads, depots and houses, weight implementation for road distances, van logic and the implementation of the A* and Dijkstra simulations.
 ### Ted Turner
 ### Chase Sibley
 I was in charge of testing and communicating with team members what needed changing. Tests cover the whole scope of the website and
@@ -74,9 +75,9 @@ the functionality of each algorithm.
 #### I used it for: Fixed the bugged code and the script then ran 
 
 ### Alistair Bishop:
-#### I gave claude:
-#### It gave me: 
-#### I used it for:
+#### I gave claude: Our original requirements and job allocations.
+#### It gave me: A list of deliverables i need to achieve and by x date.
+#### I used it for: Keeping good time management, giving suitable time for testing and interface design, and keeping to the rigid constraints of my part of the group project.
 
 ### Chase Sibley:
 #### I gave claude:
