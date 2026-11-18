@@ -4,212 +4,269 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Interactive A* postal delivery route simulator with a Dijkstra comparison.">
+    <meta name="theme-color" content="#22313a">
     <title>A* Postal Route Simulator</title>
+    <link rel="preload" href="fonts/overpass-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/overpass-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
+    <a class="skip-link" href="#map">Skip to map</a>
+
+    <header class="app-bar">
+      <div class="brand">
+        <img class="brand-mark" src="van.png" alt="" aria-hidden="true">
+        <h1>Postal route simulator</h1>
+      </div>
+
+      <div class="header-actions">
+        <button class="icon-button" id="helpButton" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-expanded="false" aria-controls="helpPanel">
+          <img class="icon-img on-dark" src="help.png" alt="" aria-hidden="true">
+        </button>
+        <button class="icon-button" id="resetButton" type="button" aria-label="Reset the run" title="Reset (R)">
+          <img class="icon-img on-dark" src="reset.png" alt="" aria-hidden="true">
+        </button>
+
+        <button class="dispatch-button" id="runButton" type="button" title="Dispatch (Enter)">
+          <img class="dispatch-van" src="van.png" alt="" aria-hidden="true">
+
+          <span id="runLabel">Dispatch van</span>
+        </button>
+      </div>
+
+      <div class="help-panel" id="helpPanel" hidden>
+        <h2>Keyboard shortcuts</h2>
+
+        <dl>
+          <div><dt><kbd>Enter</kbd></dt><dd>Dispatch the van</dd></div>
+          <div><dt><kbd>Space</kbd></dt><dd>Play or pause</dd></div>
+          <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step back or forward</dd></div>
+          <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous or next leg</dd></div>
+          <div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Watch A* or Dijkstra</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Reset the run</dd></div>
+          <div><dt><kbd>F</kbd></dt><dd>Fit the map to the screen</dd></div>
+          <div><dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Pick a drawing tool</dd></div>
+          <div><dt><kbd>Esc</kbd></dt><dd>Put the tool down</dd></div>
+        </dl>
+      </div>
+    </header>
+
     <main id="main" class="workspace">
-      <aside class="control-panel" aria-label="Map and simulation controls">
+      <aside class="control-panel" aria-label="Map setup">
         <section class="panel-section">
-          <div class="section-heading">
-            <span class="eyebrow">Map input</span>
-            <h2>Map settings</h2>
-          </div>
+          <h2>Map</h2>
 
           <div class="field-grid">
             <label>
               <span>Nodes</span>
-              <input id="nodeCount" type="number" min="2" value="14">
+
+              <input id="nodeCount" type="number" min="2" max="400" value="14" inputmode="numeric">
             </label>
             <label>
               <span>Roads</span>
-              <input id="edgeCount" type="number" min="1" value="22">
+
+              <input id="edgeCount" type="number" min="1" value="22" inputmode="numeric">
             </label>
             <label>
               <span>Addresses</span>
-              <input id="addressCount" type="number" min="1" value="5">
+              <input id="addressCount" type="number" min="1" value="5" inputmode="numeric">
             </label>
             <label>
               <span>Seed</span>
-              <input id="seed" type="text" value="exeter-01" spellcheck="false">
+              <span class="seed-field">
+                <input id="seed" type="text" value="exeter-01" spellcheck="false" autocomplete="off">
+                <button class="seed-shuffle" id="shuffleSeed" type="button" aria-label="New random seed" title="New random seed">
+                  <img class="icon-img on-light" src="shuffle.png" alt="" aria-hidden="true">
+                </button>
+              </span>
+            </label>
+            <label class="span-2">
+              <span>Road costs</span>
+              <select id="weightMode">
+                <option value="distance">Based on distance</option>
+                <option value="random">Random</option>
+              </select>
             </label>
           </div>
-
-          <label class="wide-field">
-            <span>Road weights</span>
-            <select id="weightMode">
-              <option value="distance">Distance based</option>
-              <option value="random">Random cost</option>
-            </select>
-          </label>
-
-          <button class="button button-primary" id="generateButton" type="button">
-            <span>Reload map</span>
-          </button>
+          <button class="button" id="generateButton" type="button">Generate map</button>
           <p class="field-error" id="formError" role="alert"></p>
         </section>
 
-        <section class="panel-section compact">
-          <div class="section-heading inline">
-            <div>
-              <span class="eyebrow">Manual editing</span>
-              <h2>Drawing tools</h2>
-            </div>
-            <button class="text-button" id="clearButton" type="button">Clear</button>
+        <section class="panel-section">
+          <div class="section-heading">
+            <h2>Draw</h2>
+            <button class="text-button" id="clearButton" type="button">Clear map</button>
           </div>
           <div class="tool-grid" role="group" aria-label="Drawing tools">
-            <button class="tool-button" data-tool="junction" type="button"><span>＋</span> Junction</button>
-            <button class="tool-button" data-tool="house" type="button"><span>⌂</span> House</button>
-            <button class="tool-button" data-tool="depot" type="button"><span>◆</span> Depot</button>
-            <button class="tool-button" data-tool="connect" type="button"><span>—</span> Road</button>
+            <button class="tool-button" data-tool="depot" type="button" aria-pressed="false" title="Depot (1)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect class="sym-depot" x="6" y="6" width="12" height="12" rx="2" transform="rotate(45 12 12)"></rect></svg>
+              Depot
+            </button>
+            <button class="tool-button" data-tool="house" type="button" aria-pressed="false" title="Address (2)">
+              <img class="icon-img on-light" src="house.png" alt="" aria-hidden="true">
+              Address
+            </button>
+            <button class="tool-button" data-tool="junction" type="button" aria-pressed="false" title="Junction (3)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="sym-junction" cx="12" cy="12" r="5"></circle></svg>
+              Junction
+            </button>
+
+            <button class="tool-button" data-tool="connect" type="button" aria-pressed="false" title="Road (4)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path class="sym-road" d="M4 18 L20 6"></path></svg>
+              Road
+            </button>
           </div>
-          <p class="helper" id="toolHelp">Select a tool, then click the map.</p>
+          <p class="helper" id="toolHelp"></p>
         </section>
 
-        <section class="panel-section compact parcel-section">
-          <div class="section-heading inline">
-            <div>
-              <span class="eyebrow">Delivery list</span>
-              <h2>Parcels</h2>
-            </div>
-            <span class="count-badge" id="parcelCount">0</span>
+        <section class="panel-section parcel-section">
+          <div class="section-heading">
+            <h2>Parcels</h2>
+            <span class="count-badge" id="parcelCount" aria-label="Parcels left to deliver">0</span>
           </div>
           <ol class="parcel-list" id="parcelList"></ol>
         </section>
       </aside>
 
-      <section class="map-panel" aria-label="Road network visualisation">
+      <section class="map-panel" aria-label="Road network">
         <div class="map-toolbar">
-          <div class="legend" aria-label="Map legend">
-            <span>
-              <svg class="legend-icon depot" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5" transform="rotate(45 10 10)"></rect></svg>
-              Depot
-            </span>
-            <span>
-              <svg class="legend-icon house" viewBox="0 0 24 24" aria-hidden="true"><path d="M 3 11 L 12 3 L 21 11 L 18 11 L 18 21 L 6 21 L 6 11 Z"></path></svg>
-              Address
-            </span>
-            <span>
-              <svg class="legend-icon junction" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle></svg>
-              Junction
-            </span>
-            <span>
-              <svg class="legend-icon route" viewBox="0 0 24 20" aria-hidden="true"><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-              Route
-            </span>
+          <div class="legend" aria-label="Map key">
+            <span><svg viewBox="0 0 20 20" aria-hidden="true"><rect class="sym-depot" x="5" y="5" width="10" height="10" rx="1.5" transform="rotate(45 10 10)"></rect></svg>Depot</span>
+
+            <span><img class="icon-img on-light" src="house.png" alt="" aria-hidden="true">Address</span>
+            <span><svg viewBox="0 0 20 20" aria-hidden="true"><circle class="sym-junction" cx="10" cy="10" r="6"></circle></svg>Junction</span>
+            <span><svg viewBox="0 0 24 20" aria-hidden="true"><line class="sym-route" x1="2" y1="10" x2="22" y2="10"></line></svg>Route</span>
           </div>
           <div class="view-controls" aria-label="Map view controls">
             <button id="zoomOutButton" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-            <button id="fitViewButton" type="button">Fit</button>
+            <button id="fitViewButton" type="button" title="Fit map (F)">Fit</button>
+
             <button id="zoomInButton" type="button" aria-label="Zoom in" title="Zoom in">+</button>
           </div>
         </div>
+
         <div class="map-stage" id="mapStage">
           <svg id="map" viewBox="0 0 1000 620" role="img" aria-labelledby="mapTitle mapDescription">
             <title id="mapTitle">Postal delivery road network</title>
+
             <desc id="mapDescription">A weighted graph showing a depot, delivery addresses, junctions and roads.</desc>
             <defs>
               <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
                 <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" stroke-width="1"></path>
               </pattern>
-              <filter id="vanShadow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="6" stdDeviation="5" flood-opacity="0.32"></feDropShadow>
-              </filter>
             </defs>
             <g id="viewportLayer">
+              <rect class="paper-fill" id="paperFill" width="1000" height="620"></rect>
+
               <rect id="gridFill" class="grid-fill" width="1000" height="620" fill="url(#grid)"></rect>
+
               <g id="edgeLayer"></g>
               <g id="routeLayer"></g>
+
               <g id="nodeLayer"></g>
               <g id="vanLayer"></g>
             </g>
           </svg>
+
           <div class="empty-state" id="emptyState" hidden>
-            <span>⌁</span>
             <strong>No network yet</strong>
             <p>Load the demo map or draw one by hand.</p>
           </div>
+
+          <div class="node-tip" id="nodeTip" role="tooltip" hidden></div>
+
+          <form class="edge-editor" id="edgeEditor" hidden>
+            <label for="edgeWeightInput">Road cost</label>
+            <input id="edgeWeightInput" type="number" min="0.1" step="any" required>
+            <button class="button small" type="submit">Save</button>
+            <button class="text-button" id="edgeCancel" type="button">Cancel</button>
+          </form>
         </div>
 
         <div class="transport" aria-label="Simulation controls">
-          <button class="dispatch-button" id="runButton" type="button">
-            <span class="play-icon" aria-hidden="true">▶</span>
-            <span>Dispatch van</span>
+          <button class="t-button" id="pauseButton" type="button" aria-label="Play" title="Play (Space)" data-playing="false" disabled>
+            <img class="icon-img on-dark icon-play" src="play.png" alt="" aria-hidden="true">
+            <img class="icon-img on-dark icon-pause" src="pause.png" alt="" aria-hidden="true">
           </button>
-          <button class="icon-button" id="pauseButton" type="button" aria-label="Pause simulation" title="Pause">Ⅱ</button>
-          <button class="icon-button" id="resetButton" type="button" aria-label="Reset simulation" title="Reset">↺</button>
           <label class="speed-control">
             <span>Replay speed</span>
             <input id="speed" type="range" min="1" max="5" value="3">
             <output id="speedOutput">1×</output>
           </label>
+          <div class="watch-toggle" role="radiogroup" aria-label="Algorithm to watch">
+            <button class="t-button" type="button" role="radio" aria-checked="true" data-algorithm="astar" title="Watch A* (A)">A*</button>
+            <button class="t-button" type="button" role="radio" aria-checked="false" data-algorithm="dijkstra" title="Watch Dijkstra (D)">Dijkstra</button>
+          </div>
         </div>
       </section>
 
       <aside class="insight-panel" aria-label="Algorithm explanation and results">
-        <section class="insight-header">
-          <span class="eyebrow">Algorithm</span>
-          <h1>A* search</h1>
-          <p>The panel updates as A* explores the graph and calculates the delivery route.</p>
-        </section>
 
         <section class="formula-card">
-          <span class="formula-label">Priority score</span>
-          <div class="formula"><em>f</em>(n) = <em>g</em>(n) + <em>h</em>(n)</div>
-          <div class="score-row">
-            <span><i>g</i><strong id="gScore">—</strong><small>travelled</small></span>
-            <span><i>h</i><strong id="hScore">—</strong><small>estimated</small></span>
-            <span><i>f</i><strong id="fScore">—</strong><small>total score</small></span>
+          <div class="formula" id="formula" aria-label="f of n equals g of n plus h of n">
+            <span><em>f</em>(n)</span><span class="op">=</span><span><em>g</em>(n)</span><span class="op">+</span><span id="formulaH"><em>h</em>(n)</span>
           </div>
-        </section>
-
-        <section class="step-card" aria-live="polite">
-          <div class="step-index" id="stepIndex">00</div>
-          <div>
-            <span class="eyebrow" id="stepPhase">Waiting</span>
-            <h2 id="stepTitle">Build a map to begin</h2>
-            <p id="stepDescription">A* will expose its open set, closed set and chosen route here.</p>
+          <div class="score-row">
+            <div class="score f"><small><em>f</em></small><strong id="fScore">—</strong></div>
+            <div class="score"><small><em>g</em></small><strong id="gScore">—</strong></div>
+            <div class="score"><small><em>h</em></small><strong id="hScore">—</strong></div>
           </div>
         </section>
 
         <section class="set-card">
           <div>
-            <span class="set-title"><i class="set-dot open"></i>Open set</span>
-            <div class="set-values" id="openSet"><span>—</span></div>
+            <h3><i class="swatch open"></i>To explore</h3>
+
+            <ul class="set-values" id="openSet"><li class="empty">—</li></ul>
           </div>
           <div>
-            <span class="set-title"><i class="set-dot closed"></i>Closed set</span>
-            <div class="set-values" id="closedSet"><span>—</span></div>
+            <h3><i class="swatch closed"></i>Explored</h3>
+            <ul class="set-values" id="closedSet"><li class="empty">—</li></ul>
           </div>
         </section>
 
         <section class="comparison-section">
-          <div class="section-heading inline">
-            <div>
-              <span class="eyebrow">Comparison</span>
-              <h2>A* vs Dijkstra</h2>
-            </div>
-            <span class="fair-badge">Same stops</span>
+          <h2>A* vs Dijkstra</h2>
+
+          <div class="minimaps">
+            <figure class="minimap astar">
+              <svg id="astarMini" viewBox="0 0 1000 620" aria-hidden="true"></svg>
+              <figcaption><strong>A*</strong> <span id="astarMiniCount">—</span></figcaption>
+            </figure>
+            <figure class="minimap dijkstra">
+              <svg id="dijkstraMini" viewBox="0 0 1000 620" aria-hidden="true"></svg>
+              <figcaption><strong>Dijkstra</strong> <span id="dijkstraMiniCount">—</span></figcaption>
+            </figure>
           </div>
-          <div class="comparison-grid">
-            <article class="metric-card astar">
-              <div><span class="algorithm-mark">A*</span><small>informed search</small></div>
-              <strong id="astarCost">—</strong><span>route cost</span>
-              <dl>
-                <div><dt>Explored</dt><dd id="astarExplored">—</dd></div>
-                <div><dt>Runtime</dt><dd id="astarTime">—</dd></div>
-              </dl>
-            </article>
-            <article class="metric-card dijkstra">
-              <div><span class="algorithm-mark">D</span><small>zero heuristic</small></div>
-              <strong id="dijkstraCost">—</strong><span>route cost</span>
-              <dl>
-                <div><dt>Explored</dt><dd id="dijkstraExplored">—</dd></div>
-                <div><dt>Runtime</dt><dd id="dijkstraTime">—</dd></div>
-              </dl>
-            </article>
+
+          <table class="comparison-table">
+            <thead>
+              <tr><th scope="col"><span class="visually-hidden">Measure</span></th><th scope="col" class="astar">A*</th><th scope="col" class="dijkstra">Dijkstra</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Route cost</th><td id="astarCost"></td><td id="dijkstraCost"></td></tr>
+              <tr><th scope="row">Nodes explored</th><td id="astarExplored"></td><td id="dijkstraExplored"></td></tr>
+              <tr><th scope="row">Runtime</th><td id="astarTime"></td><td id="dijkstraTime"></td></tr>
+            </tbody>
+          </table>
+
+          <p class="comparison-note" id="comparisonNote"></p>
+
+          <div class="legs" id="legsWrap" hidden>
+            <h3>Each leg</h3>
+            <table class="legs-table">
+              <colgroup><col><col class="num-col"><col class="num-col"><col class="num-col dijkstra-col"></colgroup>
+              <thead>
+                <tr class="group-row">
+                  <td colspan="2"></td>
+                  <th scope="colgroup" colspan="2">Nodes explored to find the path</th>
+                </tr>
+                <tr class="label-row"><th scope="col">Leg</th><th scope="col">Cost</th><th scope="col" class="astar">A*</th><th scope="col" class="dijkstra">Dijkstra</th></tr>
+              </thead>
+
+              <tbody id="legsBody"></tbody>
+            </table>
           </div>
-          <p class="comparison-note" id="comparisonNote">Matching route costs are expected. Compare explored nodes and runtime.</p>
         </section>
       </aside>
     </main>

@@ -1,24 +1,3 @@
-/*
-  SPEC (from the original file, kept for reference)
-
-  INPUT (settings): nodeCount, edgeCount, addressCount, seed, weightMode ("distance" | "random")
-
-  OUTPUT:
-    nodes:   [{ id, x, y, type: "depot" | "house" | "junction", label }]
-    edges:   [{ id, from, to, weight (> 0), directed }]
-    parcels: [{ id, contents, destination (house id) }]
-    bounds:  { width, height }
-
-  RULES:
-    - Exactly one node has type "depot".
-    - Every node id and edge id is unique.
-    - Every edge references two existing node ids.
-    - Every edge weight is greater than zero.
-    - Every parcel destination is an existing house id.
-    - The graph should be connected from the depot.
-    - Coordinates should fit inside bounds.
-    - Increase bounds for large maps; the UI already supports pan and zoom.
-*/
 
 export function getMap(settings = {}) {
   const random = makeRandom(settings.seed);

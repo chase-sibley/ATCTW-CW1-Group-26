@@ -5,39 +5,62 @@ import {
 } from "./algorithms.js";
 import { getMap } from "./map-source.js";
 
+// interface controller
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+
 const elements = {
-  map: $("#map"), viewportLayer: $("#viewportLayer"), gridFill: $("#gridFill"), mapStage: $("#mapStage"),
+  map: $("#map"), viewportLayer: $("#viewportLayer"), gridFill: $("#gridFill"), paperFill: $("#paperFill"), mapStage: $("#mapStage"),
   edgeLayer: $("#edgeLayer"), routeLayer: $("#routeLayer"), nodeLayer: $("#nodeLayer"), vanLayer: $("#vanLayer"),
   emptyState: $("#emptyState"), formError: $("#formError"), parcelList: $("#parcelList"), parcelCount: $("#parcelCount"),
-  toolHelp: $("#toolHelp"), runButton: $("#runButton"), pauseButton: $("#pauseButton"),
+  toolHelp: $("#toolHelp"), runButton: $("#runButton"), runLabel: $("#runLabel"), resetButton: $("#resetButton"),
   zoomOutButton: $("#zoomOutButton"), fitViewButton: $("#fitViewButton"), zoomInButton: $("#zoomInButton"),
   nodeCount: $("#nodeCount"), edgeCount: $("#edgeCount"), addressCount: $("#addressCount"), seed: $("#seed"), weightMode: $("#weightMode"),
-  speed: $("#speed"), speedOutput: $("#speedOutput"), gScore: $("#gScore"), hScore: $("#hScore"), fScore: $("#fScore"),
-  stepIndex: $("#stepIndex"), stepPhase: $("#stepPhase"), stepTitle: $("#stepTitle"), stepDescription: $("#stepDescription"),
-  openSet: $("#openSet"), closedSet: $("#closedSet"), astarCost: $("#astarCost"), astarExplored: $("#astarExplored"),
-  astarTime: $("#astarTime"), dijkstraCost: $("#dijkstraCost"), dijkstraExplored: $("#dijkstraExplored"),
-  dijkstraTime: $("#dijkstraTime"), comparisonNote: $("#comparisonNote")
+  shuffleSeed: $("#shuffleSeed"),
+  pauseButton: $("#pauseButton"),
+  speed: $("#speed"), speedOutput: $("#speedOutput"),
+  gScore: $("#gScore"), hScore: $("#hScore"), fScore: $("#fScore"), formulaH: $("#formulaH"),
+  openSet: $("#openSet"), closedSet: $("#closedSet"),
+  astarCost: $("#astarCost"), astarExplored: $("#astarExplored"), astarTime: $("#astarTime"),
+  dijkstraCost: $("#dijkstraCost"), dijkstraExplored: $("#dijkstraExplored"), dijkstraTime: $("#dijkstraTime"),
+  comparisonNote: $("#comparisonNote"), astarMini: $("#astarMini"), dijkstraMini: $("#dijkstraMini"),
+  astarMiniCount: $("#astarMiniCount"), dijkstraMiniCount: $("#dijkstraMiniCount"),
+  legsWrap: $("#legsWrap"), legsBody: $("#legsBody"),
+  edgeEditor: $("#edgeEditor"), edgeWeightInput: $("#edgeWeightInput"), edgeCancel: $("#edgeCancel"),
+  nodeTip: $("#nodeTip"), helpButton: $("#helpButton"), helpPanel: $("#helpPanel")
 };
 
+const ALGORITHM_NAMES = { astar: "A*", dijkstra: "Dijkstra" };
+const FRAME_TIME = { start: 1700, search: 520, found: 1300, planned: 1000, drive: 0, done: 0 };
 const VIEW_WIDTH = 1000;
-const VIEW_HEIGHT = 620;
+let VIEW_HEIGHT = 620;
+
 let graph = { nodes: [], edges: [], parcels: [], bounds: { width: VIEW_WIDTH, height: VIEW_HEIGHT } };
 let activeTool = null;
 let selectedNodeId = null;
-let routePath = [];
-let currentNodeId = null;
-let openNodeIds = new Set();
-let closedNodeIds = new Set();
-let delivered = new Set();
-let runToken = 0;
-let paused = false;
-let vanPosition = null;
+let editingEdgeId = null;
 let view = { x: 0, y: 0, scale: 1, minimumScale: 0.5, maximumScale: 4 };
 let panGesture = null;
 let ignoreClicksUntil = 0;
+
+// Run and playback state
+let run = null;            // { astar, dijkstra, astarMs, dijkstraMs, depotId }
+let watching = "astar";
+let frames = [];
+let legStarts = [];
+let frameIndex = 0;
+let playing = false;
+let playToken = 0;
+let stopOrder = new Map();
+let display = emptyDisplay();
+
+function emptyDisplay() {
+  return { states: new Map(), info: new Map(), goal: null, legStart: null, delivered: new Set(), legIndex: -1 };
+}
+
+// tools
 
 function svgElement(tag, attributes = {}) {
   const element = document.createElementNS(SVG_NS, tag);
@@ -59,6 +82,10 @@ function formatNumber(number) {
   return number.toFixed(number % 1 === 0 ? 0 : 1);
 }
 
+function plural(count, word, many = `${word}s`) {
+  return `${count} ${count === 1 ? word : many}`;
+}
+
 function showError(message) {
   elements.formError.textContent = message;
 }
@@ -71,8 +98,25 @@ function graphBounds() {
   return graph.bounds ?? { width: VIEW_WIDTH, height: VIEW_HEIGHT };
 }
 
+function currentResult() {
+  return run ? run[watching] : null;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function speed() {
+  return [0, 0.5, 0.75, 1, 1.5, 2][Number(elements.speed.value)] || 1;
+}
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+// pan and zooming in view window
+
 function applyViewTransform() {
   elements.viewportLayer.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.scale})`);
+  hideNodeTip();
 }
 
 function clampView() {
@@ -80,7 +124,6 @@ function clampView() {
   const scaledWidth = bounds.width * view.scale;
   const scaledHeight = bounds.height * view.scale;
   const visibleMargin = 90;
-
   if (scaledWidth <= VIEW_WIDTH - visibleMargin * 2) {
     view.x = (VIEW_WIDTH - scaledWidth) / 2;
   } else {
@@ -125,6 +168,26 @@ function zoomView(factor, centre = { x: VIEW_WIDTH / 2, y: VIEW_HEIGHT / 2 }) {
   clampView();
   applyViewTransform();
 }
+
+// Match SVG drawing area to map panel space
+function matchViewToStage() {
+  const { width, height } = elements.mapStage.getBoundingClientRect();
+  if (width < 10 || height < 10) return;
+  const nextHeight = Math.round(VIEW_WIDTH * (height / width));
+  if (nextHeight === VIEW_HEIGHT) return;
+  const firstFit = elements.map.dataset.sized !== "true";
+  VIEW_HEIGHT = nextHeight;
+  elements.map.setAttribute("viewBox", `0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`);
+  elements.map.dataset.sized = "true";
+  if (firstFit) {
+    fitGraphToView();
+  } else {
+    clampView();
+    applyViewTransform();
+  }
+}
+
+// label positioning
 
 function boxesOverlap(first, second, padding = 4) {
   return first.x < second.x + second.width + padding &&
@@ -202,7 +265,6 @@ function createNodeLabelLayout() {
   const nodeBoxes = graph.nodes.map((node) => ({ id: node.id, x: node.x - 22, y: node.y - 22, width: 44, height: 44 }));
   const labelBoxes = [];
   const layout = new Map();
-
   for (const node of graph.nodes) {
     const width = Math.max(28, node.label.length * 7.5);
     const candidates = [
@@ -216,7 +278,6 @@ function createNodeLabelLayout() {
     layout.set(node.id, chosen);
     labelBoxes.push(chosen.box);
   }
-
   return { layout, obstacles: [...nodeBoxes, ...labelBoxes] };
 }
 
@@ -238,14 +299,17 @@ function createRoadLabelLayout(from, to, text, obstacleIndex) {
   return selectIndexedLabelCandidate(candidates, obstacleIndex);
 }
 
+// base map drawing
+
 function renderGraph() {
   elements.edgeLayer.replaceChildren();
-  elements.routeLayer.replaceChildren();
   elements.nodeLayer.replaceChildren();
   elements.emptyState.hidden = graph.nodes.length > 0;
   const bounds = graphBounds();
-  elements.gridFill.setAttribute("width", bounds.width);
-  elements.gridFill.setAttribute("height", bounds.height);
+  for (const rect of [elements.gridFill, elements.paperFill]) {
+    rect.setAttribute("width", bounds.width);
+    rect.setAttribute("height", bounds.height);
+  }
   const nodeLabelLayout = createNodeLabelLayout();
   const labelObstacles = createBoxIndex(nodeLabelLayout.obstacles);
 
@@ -253,9 +317,12 @@ function renderGraph() {
     const from = nodeById(edge.from);
     const to = nodeById(edge.to);
     if (!from || !to) continue;
-    const group = svgElement("g", { class: "edge-group", "data-edge-id": edge.id, tabindex: "0", role: "button", "aria-label": `Road cost ${edge.weight}. Activate to edit.` });
-    const line = svgElement("line", { class: "road", x1: from.x, y1: from.y, x2: to.x, y2: to.y });
     const text = formatNumber(edge.weight);
+    const group = svgElement("g", {
+      class: "edge-group", "data-edge-id": edge.id, tabindex: "0", role: "button",
+      "aria-label": `Road from ${from.label} to ${to.label}, cost ${text}. Press Enter to change the cost.`
+    });
+    const line = svgElement("line", { class: "road", x1: from.x, y1: from.y, x2: to.x, y2: to.y });
     const labelLayout = createRoadLabelLayout(from, to, text, labelObstacles);
     labelObstacles.add(labelLayout.box);
     const labelBackground = svgElement("rect", { class: "road-label-bg", x: labelLayout.x - labelLayout.width / 2, y: labelLayout.y - 11, width: labelLayout.width, height: 22, rx: 7 });
@@ -265,31 +332,35 @@ function renderGraph() {
     group.addEventListener("click", (event) => {
       event.stopPropagation();
       if (performance.now() < ignoreClicksUntil) return;
-      editEdgeWeight(edge.id);
+      editEdgeWeight(edge.id, labelBackground);
     });
     group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") editEdgeWeight(edge.id);
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        editEdgeWeight(edge.id, labelBackground);
+      }
     });
     elements.edgeLayer.append(group);
   }
 
   for (const node of graph.nodes) {
+    const typeName = { depot: "depot", house: "address", junction: "junction" }[node.type] ?? node.type;
     const group = svgElement("g", {
       class: "node-group", transform: `translate(${node.x} ${node.y})`, "data-node-id": node.id,
-      "data-type": node.type, "data-state": nodeState(node.id), "data-selected": node.id === selectedNodeId,
-      tabindex: "0", role: "button", "aria-label": `${node.label}, ${node.type}`
+      "data-type": node.type, tabindex: "0", role: "button", "aria-label": `${node.label}, ${typeName}`
     });
     const halo = svgElement("circle", { class: "node-halo", r: 20 });
     let shape;
     if (node.type === "depot") {
       shape = svgElement("rect", { class: "node-shape", x: -10, y: -10, width: 20, height: 20, rx: 3, transform: "rotate(45)" });
     } else if (node.type === "house") {
-      shape = svgElement("path", { class: "node-shape", d: "M -11 1 L 0 -10 L 11 1 L 8 1 L 8 10 L -8 10 L -8 1 Z" });
+      shape = svgElement("image", { class: "node-image", href: "house.png", x: -12, y: -12, width: 24, height: 24 });
     } else {
       shape = svgElement("circle", { class: "node-shape", r: 9 });
     }
-    const nodeLabel = nodeLabelLayout.layout.get(node.id);
-    const label = svgElement("text", { class: "node-label", x: nodeLabel.x, y: nodeLabel.y, "text-anchor": nodeLabel.anchor });
+    const placement = nodeLabelLayout.layout.get(node.id);
+    const label = svgElement("text", { class: "node-label", x: placement.x, y: placement.y, "text-anchor": placement.anchor });
     label.textContent = node.label;
     group.append(halo, shape, label);
     group.addEventListener("click", (event) => {
@@ -298,86 +369,175 @@ function renderGraph() {
       handleNodeClick(node.id);
     });
     group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") handleNodeClick(node.id);
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        handleNodeClick(node.id);
+      }
     });
+    group.addEventListener("pointerenter", () => showNodeTip(node.id, group));
+    group.addEventListener("pointerleave", hideNodeTip);
+    group.addEventListener("focus", () => showNodeTip(node.id, group));
+    group.addEventListener("blur", hideNodeTip);
     elements.nodeLayer.append(group);
   }
 
-  renderRoute();
-  renderVan();
+  updateNodeStates();
   renderParcels();
 }
 
-function nodeState(id) {
-  if (id === currentNodeId) return "current";
-  if (closedNodeIds.has(id)) return "closed";
-  if (openNodeIds.has(id)) return "open";
-  return "idle";
-}
-
 function updateNodeStates() {
-  $$(".node-group").forEach((nodeElement) => {
-    const id = nodeElement.dataset.nodeId;
-    nodeElement.dataset.state = nodeState(id);
-    nodeElement.dataset.selected = String(id === selectedNodeId);
+  $$(".node-group").forEach((element) => {
+    const id = element.dataset.nodeId;
+    element.dataset.state = display.states.get(id) ?? "idle";
+    element.dataset.selected = String(id === selectedNodeId);
+    element.dataset.goal = String(id === display.goal);
+    element.dataset.delivered = String(isDestinationDelivered(id));
   });
 }
 
-function renderRoute() {
-  elements.routeLayer.replaceChildren();
-  for (let index = 1; index < routePath.length; index += 1) {
-    const from = nodeById(routePath[index - 1]);
-    const to = nodeById(routePath[index]);
-    if (!from || !to) continue;
-    elements.routeLayer.append(svgElement("line", { class: "road route", x1: from.x, y1: from.y, x2: to.x, y2: to.y }));
-  }
+function isDestinationDelivered(id) {
+  return graph.parcels.some((parcel) => parcel.destination === id) &&
+    graph.parcels.filter((parcel) => parcel.destination === id).every((parcel) => display.delivered.has(parcel.id));
 }
 
-function renderVan() {
-  elements.vanLayer.replaceChildren();
-  if (!vanPosition) return;
-  const van = svgElement("g", { class: "van", transform: `translate(${vanPosition.x} ${vanPosition.y - 17})` });
-  van.append(
-    svgElement("rect", { class: "van-body", x: -16, y: -10, width: 32, height: 20, rx: 5 }),
-    svgElement("path", { class: "van-body", d: "M 7 -10 L 18 -10 L 25 0 L 25 10 L 7 10 Z" }),
-    svgElement("path", { class: "van-window", d: "M 11 -7 L 17 -7 L 22 -1 L 11 -1 Z" }),
-    svgElement("circle", { class: "van-wheel", cx: -9, cy: 11, r: 5 }),
-    svgElement("circle", { class: "van-wheel", cx: 17, cy: 11, r: 5 })
-  );
-  elements.vanLayer.append(van);
-}
+// parcels
 
 function renderParcels() {
-  elements.parcelCount.textContent = String(graph.parcels.length - delivered.size);
+  elements.parcelCount.textContent = String(graph.parcels.length - display.delivered.size);
   elements.parcelList.replaceChildren();
-  for (const parcel of graph.parcels) {
+  if (graph.parcels.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "parcel-empty";
+    empty.textContent = "No parcels";
+    elements.parcelList.append(empty);
+    return;
+  }
+  const parcels = [...graph.parcels].sort((a, b) =>
+    (stopOrder.get(a.destination) ?? Infinity) - (stopOrder.get(b.destination) ?? Infinity));
+  for (const parcel of parcels) {
     const item = document.createElement("li");
-    const isDelivered = delivered.has(parcel.id);
+    const isDelivered = display.delivered.has(parcel.id);
+    const stop = stopOrder.get(parcel.destination);
     if (isDelivered) item.classList.add("delivered");
-    item.innerHTML = `
-      <span class="parcel-icon">□</span>
-      <span><strong>${parcel.contents}</strong><small>${nodeName(parcel.destination)}</small></span>
-      <span class="parcel-state">${isDelivered ? "Delivered" : "On board"}</span>
-    `;
+    if (stop) item.dataset.stop = String(stop);
+    if (parcel.destination === display.goal) item.classList.add("next");
+
+    const stopMark = document.createElement("span");
+    stopMark.className = "parcel-stop";
+    stopMark.textContent = stop ? String(stop) : "–";
+    stopMark.title = stop ? `Stop ${stop}` : "Not planned yet";
+
+    const text = document.createElement("span");
+    const title = document.createElement("strong");
+    title.textContent = parcel.contents;
+    const place = document.createElement("small");
+    place.textContent = nodeName(parcel.destination);
+    text.append(title, place);
+
+    const state = document.createElement("span");
+    state.className = "parcel-state";
+    state.textContent = isDelivered ? "Delivered" : parcel.destination === display.goal ? "Next" : "On board";
+
+    item.append(stopMark, text, state);
+    item.addEventListener("pointerenter", () => highlightNode(parcel.destination, true));
+    item.addEventListener("pointerleave", () => highlightNode(parcel.destination, false));
     elements.parcelList.append(item);
   }
 }
 
-function editEdgeWeight(edgeId) {
+function highlightNode(id, on) {
+  elements.nodeLayer.querySelector(`[data-node-id="${CSS.escape(id)}"]`)?.classList.toggle("spotlight", on);
+}
+
+// node tooltips
+
+function showNodeTip(id, anchor) {
+  const node = nodeById(id);
+  if (!node || panGesture?.moved) return;
+  const info = display.info.get(id);
+  const tip = elements.nodeTip;
+  tip.replaceChildren();
+  const heading = document.createElement("strong");
+  heading.textContent = node.label;
+  tip.append(heading);
+  if (info) {
+    const table = document.createElement("dl");
+    for (const [key, value] of [["g", info.g], ["h", info.h], ["f", info.f]]) {
+      const row = document.createElement("div");
+      const dt = document.createElement("dt");
+      dt.innerHTML = `<em>${key}</em>`;
+      const dd = document.createElement("dd");
+      dd.textContent = formatNumber(value);
+      row.append(dt, dd);
+      table.append(row);
+    }
+    tip.append(table);
+  }
+
+  const stageBox = elements.mapStage.getBoundingClientRect();
+  const box = anchor.getBoundingClientRect();
+  tip.hidden = false;
+  const tipBox = tip.getBoundingClientRect();
+  let left = box.left + box.width / 2 - stageBox.left;
+  let top = box.top - stageBox.top - 10;
+  left = Math.min(stageBox.width - tipBox.width / 2 - 8, Math.max(tipBox.width / 2 + 8, left));
+  const below = top - tipBox.height < 8;
+  tip.dataset.below = String(below);
+  if (below) top = box.bottom - stageBox.top + 10;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+function hideNodeTip() {
+  elements.nodeTip.hidden = true;
+}
+
+// change road cost
+
+function editEdgeWeight(edgeId, anchor) {
   const edge = graph.edges.find((candidate) => candidate.id === edgeId);
   if (!edge) return;
-  const answer = window.prompt("Enter a positive road cost", String(edge.weight));
-  if (answer === null) return;
-  const weight = Number(answer);
+  editingEdgeId = edgeId;
+  const stageBox = elements.mapStage.getBoundingClientRect();
+  const anchorBox = anchor.getBoundingClientRect();
+  const x = Math.min(stageBox.width - 130, Math.max(130, anchorBox.left + anchorBox.width / 2 - stageBox.left));
+  const y = Math.max(70, anchorBox.top - stageBox.top);
+  elements.edgeEditor.style.left = `${x}px`;
+  elements.edgeEditor.style.top = `${y}px`;
+  elements.edgeEditor.hidden = false;
+  elements.edgeWeightInput.value = String(edge.weight);
+  elements.edgeWeightInput.focus();
+  elements.edgeWeightInput.select();
+}
+
+function closeEdgeEditor() {
+  if (elements.edgeEditor.hidden) return;
+  elements.edgeEditor.hidden = true;
+  const id = editingEdgeId;
+  editingEdgeId = null;
+  elements.edgeLayer.querySelector(`[data-edge-id="${CSS.escape(id ?? "")}"]`)?.focus();
+}
+
+function saveEdgeWeight(event) {
+  event.preventDefault();
+  const edge = graph.edges.find((candidate) => candidate.id === editingEdgeId);
+  if (!edge) return closeEdgeEditor();
+  const weight = Number(elements.edgeWeightInput.value);
   if (!Number.isFinite(weight) || weight <= 0) {
-    showError("Road weights must be positive numbers.");
+    showError("Road cost must be above 0.");
     return;
   }
   edge.weight = weight;
+  const id = editingEdgeId;
+  elements.edgeEditor.hidden = true;
+  editingEdgeId = null;
   clearError();
-  resetSimulation(true);
-  renderGraph();
+  clearRun();
+  elements.edgeLayer.querySelector(`[data-edge-id="${CSS.escape(id)}"]`)?.focus();
 }
+
+// setting map up and tools for drawing
 
 function loadDemoMap() {
   try {
@@ -386,28 +546,38 @@ function loadDemoMap() {
       addressCount: Number(elements.addressCount.value), seed: elements.seed.value, weightMode: elements.weightMode.value
     });
     clearError();
-    activeTool = null;
-    selectedNodeId = null;
-    elements.map.dataset.tool = "";
-    $$(".tool-button").forEach((button) => button.classList.remove("active"));
-    resetSimulation(true);
+    setTool(null);
+    clearRun();
     fitGraphToView();
-    setStep("Demo map ready", "Choose Dispatch van to replay A* on every delivery leg.", "Temporary sample", 0);
   } catch (error) {
     showError(error.message);
   }
 }
 
+function shuffleSeed() {
+  const words = ["exeter", "topsham", "crediton", "tiverton", "exmouth", "honiton", "dawlish", "cullompton"];
+  elements.seed.value = `${words[Math.floor(Math.random() * words.length)]}-${Math.floor(Math.random() * 90 + 10)}`;
+  loadDemoMap();
+}
+
+const TOOL_HELP = {
+  junction: "Click the map to add a junction.",
+  house: "Click the map to add an address.",
+  depot: "Click the map to place the depot.",
+  connect: "Click two nodes to join them."
+};
+const DEFAULT_HELP = "";
+
 function setTool(tool) {
-  activeTool = activeTool === tool ? null : tool;
+  activeTool = tool && activeTool !== tool ? tool : null;
   selectedNodeId = null;
   elements.map.dataset.tool = activeTool ?? "";
-  $$(".tool-button").forEach((button) => button.classList.toggle("active", button.dataset.tool === activeTool));
-  const instructions = {
-    junction: "Click empty map space to add a junction.", house: "Click empty map space to add an address and parcel.",
-    depot: "Click empty map space to place the one allowed depot.", connect: "Select two nodes to create a road."
-  };
-  elements.toolHelp.textContent = activeTool ? instructions[activeTool] : "Select a tool, then click the map.";
+  $$(".tool-button").forEach((button) => {
+    const active = button.dataset.tool === activeTool;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  elements.toolHelp.textContent = activeTool ? TOOL_HELP[activeTool] : DEFAULT_HELP;
   updateNodeStates();
 }
 
@@ -416,246 +586,513 @@ function handleMapClick(event) {
   if (!activeTool || activeTool === "connect") return;
   const point = mapCoordinates(event);
   const bounds = graphBounds();
-  if (point.x < 25 || point.x > bounds.width - 25 || point.y < 25 || point.y > bounds.height - 25) return;
+  if (point.x < 25 || point.x > bounds.width - 25 || point.y < 25 || point.y > bounds.height - 25) {
+    showError("Too close to the edge.");
+    return;
+  }
   if (activeTool === "depot" && graph.nodes.some((node) => node.type === "depot")) {
-    showError("The map already has a depot. Clear it or choose another tool.");
+    showError("There's already a depot.");
     return;
   }
   const index = graph.nodes.length + 1;
   const type = activeTool;
-  const id = type === "depot" ? "depot" : `${type}_${index}`;
+  let id = type === "depot" ? "depot" : `${type}_${index}`;
+  while (nodeById(id)) id = `${id}_b`;
   const count = graph.nodes.filter((node) => node.type === type).length + 1;
   const label = type === "depot" ? "Depot" : type === "house" ? `House ${count}` : `J${count}`;
   graph.nodes.push({ id, x: point.x, y: point.y, type, label });
   if (type === "house") {
     graph.parcels.push({ id: `parcel_${Date.now()}_${index}`, contents: "Parcel", destination: id });
   }
-  resetSimulation(true);
   clearError();
-  renderGraph();
+  clearRun();
 }
 
 function handleNodeClick(id) {
   if (activeTool !== "connect") return;
   if (!selectedNodeId) {
     selectedNodeId = id;
-    elements.toolHelp.textContent = `Selected ${nodeName(id)}. Now choose the other end of the road.`;
+    elements.toolHelp.textContent = `${nodeName(id)} selected.`;
     updateNodeStates();
     return;
   }
   if (selectedNodeId === id) {
     selectedNodeId = null;
-    elements.toolHelp.textContent = "Select two different nodes to create a road.";
+    elements.toolHelp.textContent = TOOL_HELP.connect;
     updateNodeStates();
     return;
   }
   const duplicate = graph.edges.some((edge) =>
     (edge.from === selectedNodeId && edge.to === id) || (edge.from === id && edge.to === selectedNodeId));
   if (duplicate) {
-    showError("Those nodes already have a road.");
+    showError("That road already exists.");
   } else {
     const from = nodeById(selectedNodeId);
     const to = nodeById(id);
     const weight = Math.max(1, Math.round(euclidean(from, to) / 10));
     graph.edges.push({ id: `edge_${Date.now()}_${graph.edges.length}`, from: selectedNodeId, to: id, weight, directed: false });
     clearError();
-    resetSimulation(true);
   }
   selectedNodeId = null;
-  elements.toolHelp.textContent = "Road added. Select another pair or click Road to stop.";
-  renderGraph();
+  clearRun();
+  elements.toolHelp.textContent = TOOL_HELP.connect;
 }
 
 function clearMap() {
-  runToken += 1;
   graph = { nodes: [], edges: [], parcels: [], bounds: { width: VIEW_WIDTH, height: VIEW_HEIGHT } };
   selectedNodeId = null;
-  resetSimulation(false);
-  fitGraphToView();
-  setStep("No map yet", "Load the demo or draw a depot, houses, junctions and roads.", "Waiting", 0);
-}
-
-function setStep(title, description, phase, index) {
-  elements.stepTitle.textContent = title;
-  elements.stepDescription.textContent = description;
-  elements.stepPhase.textContent = phase;
-  elements.stepIndex.textContent = String(index).padStart(2, "0");
-}
-
-function renderSet(container, values, formatter = (value) => value) {
-  container.replaceChildren();
-  const list = [...values];
-  if (list.length === 0) list.push("—");
-  for (const value of list.slice(0, 18)) {
-    const element = document.createElement("span");
-    element.textContent = value === "—" ? value : formatter(value);
-    container.append(element);
-  }
-  if (values.length > 18) {
-    const more = document.createElement("span");
-    more.textContent = `+${values.length - 18}`;
-    container.append(more);
-  }
-}
-
-function displaySearchStep(step, leg, index) {
-  currentNodeId = step.current;
-  openNodeIds = new Set(step.openSet.map((item) => item.id));
-  closedNodeIds = new Set(step.closedSet);
-  elements.gScore.textContent = formatNumber(step.g);
-  elements.hScore.textContent = formatNumber(step.h);
-  elements.fScore.textContent = formatNumber(step.f);
-  renderSet(elements.openSet, step.openSet, (item) => `${nodeName(item.id)} · ${formatNumber(item.f)}`);
-  renderSet(elements.closedSet, step.closedSet, (id) => nodeName(id));
-  setStep(
-    `Expanding ${nodeName(step.current)}`,
-    `${step.changes.length} neighbour${step.changes.length === 1 ? "" : "s"} improved. Lowest f-score is explored next.`,
-    `${nodeName(leg.from)} → ${nodeName(leg.to)}`,
-    index
-  );
-  updateNodeStates();
-}
-
-function updateComparison(astar, astarMs, dijkstra, dijkstraMs) {
-  elements.astarCost.textContent = formatNumber(astar.cost);
-  elements.astarExplored.textContent = String(astar.exploredCount);
-  elements.astarTime.textContent = `${astarMs.toFixed(2)}ms`;
-  elements.dijkstraCost.textContent = formatNumber(dijkstra.cost);
-  elements.dijkstraExplored.textContent = String(dijkstra.exploredCount);
-  elements.dijkstraTime.textContent = `${dijkstraMs.toFixed(2)}ms`;
-  const saved = dijkstra.exploredCount - astar.exploredCount;
-  elements.comparisonNote.textContent = saved > 0
-    ? `The matching route cost is expected. A* explored ${saved} fewer nodes while both algorithms used the same delivery order.`
-    : "The matching route cost is expected because both algorithms are optimal. On this map the heuristic did not reduce the explored nodes.";
-}
-
-function speedMultiplier() {
-  return [0, 0.5, 0.75, 1, 1.5, 2][Number(elements.speed.value)];
-}
-
-async function pauseAwareDelay(milliseconds, token) {
-  let remaining = milliseconds / speedMultiplier();
-  while (remaining > 0) {
-    if (token !== runToken) throw new Error("cancelled");
-    if (paused) {
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      continue;
-    }
-    const slice = Math.min(remaining, 40);
-    await new Promise((resolve) => setTimeout(resolve, slice));
-    remaining -= slice;
-  }
-}
-
-async function animateVan(path, token) {
-  for (let pathIndex = 1; pathIndex < path.length; pathIndex += 1) {
-    const from = nodeById(path[pathIndex - 1]);
-    const to = nodeById(path[pathIndex]);
-    const steps = 18;
-    for (let step = 1; step <= steps; step += 1) {
-      const progress = step / steps;
-      vanPosition = { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress };
-      renderVan();
-      await pauseAwareDelay(22, token);
-    }
-    for (const parcel of graph.parcels.filter((item) => item.destination === to.id)) delivered.add(parcel.id);
-    renderParcels();
-  }
-}
-
-async function runSimulation() {
   clearError();
+  clearRun();
+  fitGraphToView();
+}
+
+// run plan
+
+function validateForRun() {
   const errors = validateGraph(graph);
-  const invalidParcels = graph.parcels.filter((parcel) => !nodeById(parcel.destination));
-  if (invalidParcels.length > 0) errors.push("Every parcel must reference an existing destination.");
-  if (graph.parcels.length === 0) errors.push("Add at least one house and parcel before dispatching the van.");
+  if (graph.parcels.some((parcel) => !nodeById(parcel.destination))) errors.push("A parcel's address is missing.");
+  if (graph.parcels.length === 0) errors.push("Add an address first.");
+  return errors;
+}
+
+function dispatch() {
+  clearError();
+  hideNodeTip();
+  const errors = validateForRun();
   if (errors.length > 0) {
     showError(errors[0]);
     return;
   }
 
-  resetSimulation(false);
-  const token = ++runToken;
-  paused = false;
-  elements.pauseButton.textContent = "Ⅱ";
   const depot = graph.nodes.find((node) => node.type === "depot");
   const destinations = graph.parcels.map((parcel) => parcel.destination);
+  const astarStart = performance.now();
+  const astar = planDeliveryRoute(graph, depot.id, destinations, { algorithm: "astar" });
+  const astarMs = performance.now() - astarStart;
+  const dijkstraStart = performance.now();
+  const dijkstra = planDeliveryRoute(graph, depot.id, destinations, { algorithm: "dijkstra", order: astar.order });
+  const dijkstraMs = performance.now() - dijkstraStart;
 
-  try {
-    const astarStart = performance.now();
-    const astar = planDeliveryRoute(graph, depot.id, destinations, { algorithm: "astar" });
-    const astarMs = performance.now() - astarStart;
-    const dijkstraStart = performance.now();
-    const dijkstra = planDeliveryRoute(graph, depot.id, destinations, { algorithm: "dijkstra", order: astar.order });
-    const dijkstraMs = performance.now() - dijkstraStart;
-    updateComparison(astar, astarMs, dijkstra, dijkstraMs);
+  if (!Number.isFinite(astar.cost)) {
+    clearRun();
+    const message = "An address can't be reached from the depot.";
+    showError(message);
+    return;
+  }
 
-    if (!Number.isFinite(astar.cost)) throw new Error("At least one address is unreachable from the depot.");
-    vanPosition = { x: depot.x, y: depot.y };
-    renderVan();
+  run = { astar, dijkstra, astarMs, dijkstraMs, depotId: depot.id };
+  stopOrder = new Map(astar.order.map((id, index) => [id, index + 1]));
+  renderGraph();
+  renderComparison();
+  buildFrames();
+  elements.runLabel.textContent = "Run again";
+  showFrame(0);
+  play();
+}
 
-    let globalStep = 0;
-    const completedRoute = [];
-    for (const leg of astar.legs) {
-      for (const step of leg.searchLog) {
-        globalStep += 1;
-        displaySearchStep(step, leg, globalStep);
-        await pauseAwareDelay(190, token);
-      }
-      completedRoute.push(...(completedRoute.length === 0 ? leg.path : leg.path.slice(1)));
-      routePath = [...completedRoute];
-      renderRoute();
+function setPhase(phase) {
+  document.body.dataset.phase = phase;
+}
+
+function clearRun() {
+  pause();
+  run = null;
+  frames = [];
+  legStarts = [];
+  frameIndex = 0;
+  stopOrder = new Map();
+  display = emptyDisplay();
+  const depot = graph.nodes.find((node) => node.type === "depot");
+  elements.routeLayer.replaceChildren();
+  elements.edgeEditor.hidden = true;
+  renderVan(depot ? { x: depot.x, y: depot.y } : null, 0);
+  renderGraph();
+  renderComparison();
+  renderScores(null);
+  renderSets([], []);
+  renderTimeline();
+  elements.runLabel.textContent = "Dispatch van";
+  setPhase(graph.nodes.length > 0 ? "idle" : "empty");
+}
+
+// timeline
+
+function buildFrames() {
+  const result = currentResult();
+  frames = [{ kind: "start" }];
+  legStarts = [];
+  result.legs.forEach((leg, legIndex) => {
+    legStarts.push(frames.length);
+    leg.searchLog.forEach((_, stepIndex) => frames.push({ kind: "search", leg: legIndex, step: stepIndex }));
+    frames.push({ kind: "found", leg: legIndex });
+  });
+  frames.push({ kind: "planned" });
+  for (let segment = 1; segment < result.path.length; segment += 1) frames.push({ kind: "drive", segment });
+  frames.push({ kind: "done" });
+  renderTimeline();
+}
+
+function renderTimeline() {
+  elements.pauseButton.disabled = frames.length === 0;
+}
+
+function updateTimelinePosition() {
+  const frame = frames[frameIndex];
+  setPhase(frameIndex >= frames.length - 1 ? "done" : "running");
+  $$("#legsBody tr").forEach((row) => {
+    row.classList.toggle("active", frame.leg !== undefined && Number(row.dataset.leg) === frame.leg);
+  });
+}
+
+function setPlaying(value) {
+  playing = value;
+  elements.pauseButton.dataset.playing = String(value);
+  elements.pauseButton.setAttribute("aria-label", value ? "Pause" : "Play");
+  elements.pauseButton.title = value ? "Pause (Space)" : "Play (Space)";
+}
+
+function play() {
+  if (frames.length === 0) return;
+  if (frameIndex >= frames.length - 1) showFrame(0);
+  setPlaying(true);
+  const token = ++playToken;
+  playLoop(token);
+}
+
+function pause() {
+  if (!playing) return;
+  playToken += 1;
+  setPlaying(false);
+  if (frames.length > 0) showFrame(frameIndex);
+}
+
+function togglePlay() {
+  if (playing) pause(); else play();
+}
+
+async function playLoop(token) {
+  while (token === playToken && frameIndex < frames.length - 1) {
+    const frame = frames[frameIndex];
+    const delay = (FRAME_TIME[frame.kind] ?? 400) / speed();
+    if (delay > 0) await interruptibleWait(delay, token);
+    if (token !== playToken) return;
+    const next = frames[frameIndex + 1];
+    if (next.kind === "drive") {
+      const completed = await animateDrive(next.segment, token);
+      if (!completed) return;
     }
+    showFrame(frameIndex + 1);
+  }
+  if (token === playToken) setPlaying(false);
+}
 
-    currentNodeId = null;
-    openNodeIds.clear();
-    closedNodeIds.clear();
-    updateNodeStates();
-    setStep("Route confirmed", `The van is visiting ${astar.order.length} address${astar.order.length === 1 ? "" : "es"}.`, "Delivery run", globalStep + 1);
-    await animateVan(astar.path, token);
-    setStep("Delivery complete", `All ${graph.parcels.length} parcels were delivered for a total cost of ${formatNumber(astar.cost)}.`, "Complete", globalStep + 2);
-  } catch (error) {
-    if (error.message === "cancelled") return;
-    showError(error.message);
-    setStep("Route unavailable", error.message, "Validation", 0);
+async function interruptibleWait(milliseconds, token) {
+  let remaining = milliseconds;
+  while (remaining > 0 && token === playToken) {
+    const slice = Math.min(remaining, 50);
+    await wait(slice);
+    remaining -= slice;
   }
 }
 
-function resetSimulation(incrementToken = true) {
-  if (incrementToken) runToken += 1;
-  paused = false;
-  routePath = [];
-  currentNodeId = null;
-  openNodeIds = new Set();
-  closedNodeIds = new Set();
-  delivered = new Set();
-  vanPosition = graph.nodes.find((node) => node.type === "depot") ?? null;
-  elements.gScore.textContent = "—";
-  elements.hScore.textContent = "—";
-  elements.fScore.textContent = "—";
-  renderSet(elements.openSet, []);
-  renderSet(elements.closedSet, []);
-  elements.pauseButton.textContent = "Ⅱ";
-  renderGraph();
+function animateDrive(segment, token) {
+  const result = currentResult();
+  const from = nodeById(result.path[segment - 1]);
+  const to = nodeById(result.path[segment]);
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const duration = reducedMotion.matches ? 60 : Math.max(220, euclidean(from, to) * 3.2) / speed();
+  return new Promise((resolve) => {
+    const startTime = performance.now();
+    const tick = (now) => {
+      if (token !== playToken) return resolve(false);
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      const position = { x: from.x + (to.x - from.x) * eased, y: from.y + (to.y - from.y) * eased };
+      renderVan(position, angle);
+      if (progress < 1) requestAnimationFrame(tick);
+      else resolve(true);
+    };
+    requestAnimationFrame(tick);
+  });
 }
 
-function togglePause() {
-  paused = !paused;
-  elements.pauseButton.textContent = paused ? "▶" : "Ⅱ";
+function stepBy(offset) {
+  if (frames.length === 0) return;
+  pause();
+  showFrame(Math.min(frames.length - 1, Math.max(0, frameIndex + offset)));
 }
+
+function jumpToLeg(legIndex) {
+  if (frames.length === 0 || legIndex < 0 || legIndex >= legStarts.length) return;
+  pause();
+  showFrame(legStarts[legIndex]);
+}
+
+function currentLegIndex() {
+  const frame = frames[frameIndex];
+  if (!frame) return -1;
+  if (frame.leg !== undefined) return frame.leg;
+  if (frame.kind === "start") return -1;
+  return legStarts.length;
+}
+
+function setWatching(algorithm) {
+  if (algorithm === watching) return;
+  watching = algorithm;
+  $$(".watch-toggle [data-algorithm]").forEach((button) =>
+    button.setAttribute("aria-checked", String(button.dataset.algorithm === algorithm)));
+  elements.formulaH.innerHTML = algorithm === "dijkstra" ? "0" : "<em>h</em>(n)";
+  elements.formulaH.classList.toggle("zero", algorithm === "dijkstra");
+  if (!run) return;
+  const wasPlaying = playing;
+  const previous = frames[frameIndex];
+  pause();
+  buildFrames();
+  let target = 0;
+  if (previous.kind === "search" || previous.kind === "found") {
+    target = legStarts[previous.leg];
+  } else if (previous.kind !== "start") {
+    target = frames.findIndex((frame) => frame.kind === previous.kind && (frame.segment ?? 0) === (previous.segment ?? 0));
+  }
+  showFrame(Math.max(0, target));
+  if (wasPlaying) play();
+}
+
+// showing frames
+
+function showFrame(index) {
+  if (frames.length === 0) return;
+  frameIndex = Math.min(frames.length - 1, Math.max(0, index));
+  const frame = frames[frameIndex];
+  const result = currentResult();
+  const lastSegment = result.path.length - 1;
+  const depot = nodeById(run.depotId);
+  display = emptyDisplay();
+
+  // Route lines and van
+  let vanAt = { x: depot.x, y: depot.y };
+  let vanAngle = 0;
+  let drivenUpTo = -1;
+  elements.routeLayer.replaceChildren();
+
+  if (frame.kind === "search" || frame.kind === "found") {
+    const solidLegs = frame.kind === "found" ? frame.leg + 1 : frame.leg;
+    for (let leg = 0; leg < solidLegs; leg += 1) {
+      drawPolyline(elements.routeLayer, result.legs[leg].path, "route-line");
+    }
+    const leg = result.legs[frame.leg];
+    display.goal = leg.to;
+    display.legStart = leg.from;
+    display.legIndex = frame.leg;
+    if (frame.kind === "search") {
+      markSearchStates(leg, frame.step);
+    } else {
+      for (const id of leg.searchLog.at(-1)?.closedSet ?? []) display.states.set(id, "closed");
+    }
+  } else if (frame.kind !== "start") {
+    drawPolyline(elements.routeLayer, result.path, "route-line");
+    if (frame.kind === "drive") drivenUpTo = frame.segment;
+    if (frame.kind === "done") drivenUpTo = lastSegment;
+    if (drivenUpTo > 0) {
+      const at = nodeById(result.path[drivenUpTo]);
+      const before = nodeById(result.path[drivenUpTo - 1]);
+      vanAt = { x: at.x, y: at.y };
+      vanAngle = Math.atan2(at.y - before.y, at.x - before.x);
+      markDeliveredAlongPath(result.path.slice(0, drivenUpTo + 1));
+      const nextStop = result.order.find((id) => !isDestinationDelivered(id));
+      display.goal = nextStop ?? null;
+    } else if (frame.kind === "planned") {
+      display.goal = result.order[0];
+    }
+  }
+  renderVan(vanAt, vanAngle);
+
+  // Panel text
+  renderScores(frame.kind === "search" ? result.legs[frame.leg].searchLog[frame.step] : null);
+  if (frame.kind === "search") {
+    const step = result.legs[frame.leg].searchLog[frame.step];
+    renderSets(step.openSet, step.closedSet);
+  } else if (frame.kind === "found") {
+    renderSets([], result.legs[frame.leg].searchLog.at(-1)?.closedSet ?? []);
+  } else {
+    renderSets([], []);
+  }
+
+  updateNodeStates();
+  renderParcels();
+  updateTimelinePosition();
+}
+
+function markDeliveredAlongPath(path) {
+  const visited = new Set(path);
+  for (const parcel of graph.parcels) {
+    if (visited.has(parcel.destination)) display.delivered.add(parcel.id);
+  }
+}
+
+// highlighhting search
+
+function markSearchStates(leg, stepIndex) {
+  const step = leg.searchLog[stepIndex];
+  const info = new Map();
+  const first = leg.searchLog[0];
+  info.set(leg.from, { g: 0, h: first.h, f: first.f });
+  for (let index = 0; index <= stepIndex; index += 1) {
+    for (const change of leg.searchLog[index].changes) {
+      info.set(change.node, { g: change.g, h: change.h, f: change.f });
+    }
+  }
+  for (const item of step.openSet) display.states.set(item.id, "open");
+  for (const id of step.closedSet) display.states.set(id, "closed");
+  display.states.set(step.current, "current");
+  display.info = info;
+}
+
+function drawPolyline(layer, ids, className) {
+  const points = ids.map(nodeById).filter(Boolean).map((node) => `${node.x},${node.y}`).join(" ");
+  if (!points) return;
+  layer.append(svgElement("polyline", { class: className, points }));
+}
+
+//van
+
+function renderVan(position, angle = 0) {
+  elements.vanLayer.replaceChildren();
+  if (!position) return;
+  const van = svgElement("g", { class: "van", transform: `translate(${position.x} ${position.y - 17})` });
+  // switches van when change direction
+  const headingLeft = Math.cos(angle) < 0;
+  van.append(svgElement("image", { class: "van-image", href: "van.png", x: -23, y: -12.6, width: 46, height: 25.2, transform: headingLeft ? "" : "scale(-1 1)" }));
+  elements.vanLayer.append(van);
+}
+
+// panel
+
+function renderScores(step) {
+  elements.gScore.textContent = step ? formatNumber(step.g) : "—";
+  elements.hScore.textContent = step ? formatNumber(step.h) : "—";
+  elements.fScore.textContent = step ? formatNumber(step.f) : "—";
+}
+
+function renderSets(openSet, closedSet) {
+  const open = [...openSet].sort((a, b) => a.f - b.f);
+  fillChips(elements.openSet, open, (item) => `${nodeName(item.id)} ${formatNumber(item.f)}`, (item, index) => index === 0 ? "best" : "");
+  fillChips(elements.closedSet, closedSet, (id) => nodeName(id));
+}
+
+function fillChips(container, values, formatter, classFor = () => "") {
+  container.replaceChildren();
+  if (values.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "empty";
+    empty.textContent = "—";
+    container.append(empty);
+    return;
+  }
+  const limit = 24;
+  values.slice(0, limit).forEach((value, index) => {
+    const chip = document.createElement("span");
+    chip.textContent = formatter(value);
+    const extra = classFor(value, index);
+    if (extra) chip.className = extra;
+    container.append(chip);
+  });
+  if (values.length > limit) {
+    const more = document.createElement("span");
+    more.className = "more";
+    more.textContent = `+${values.length - limit} more`;
+    container.append(more);
+  }
+}
+
+//comparison
+
+function renderComparison() {
+  const cells = ["astarCost", "astarExplored", "astarTime", "dijkstraCost", "dijkstraExplored", "dijkstraTime"];
+  if (!run) {
+    for (const key of cells) elements[key].textContent = "—";
+    elements.astarMiniCount.textContent = "—";
+    elements.dijkstraMiniCount.textContent = "—";
+    renderMiniMap(elements.astarMini, null);
+    renderMiniMap(elements.dijkstraMini, null);
+    elements.legsWrap.hidden = true;
+    elements.comparisonNote.textContent = "";
+    return;
+  }
+  const { astar, dijkstra, astarMs, dijkstraMs } = run;
+  elements.astarCost.textContent = formatNumber(astar.cost);
+  elements.astarExplored.textContent = String(astar.exploredCount);
+  elements.astarTime.textContent = `${astarMs.toFixed(2)} ms`;
+  elements.dijkstraCost.textContent = formatNumber(dijkstra.cost);
+  elements.dijkstraExplored.textContent = String(dijkstra.exploredCount);
+  elements.dijkstraTime.textContent = `${dijkstraMs.toFixed(2)} ms`;
+  elements.astarMiniCount.textContent = `${astar.exploredCount} explored`;
+  elements.dijkstraMiniCount.textContent = `${dijkstra.exploredCount} explored`;
+  renderMiniMap(elements.astarMini, astar, "astar");
+  renderMiniMap(elements.dijkstraMini, dijkstra, "dijkstra");
+
+  const saved = dijkstra.exploredCount - astar.exploredCount;
+  elements.comparisonNote.textContent = saved > 0 ? `A* explored ${saved} fewer nodes.` : "Same number of nodes explored.";
+
+  elements.legsBody.replaceChildren();
+  astar.legs.forEach((leg, index) => {
+    const row = document.createElement("tr");
+    row.dataset.leg = String(index);
+    row.tabIndex = 0;
+    row.setAttribute("aria-label", `Jump to leg ${index + 1}`);
+    const other = dijkstra.legs[index];
+    const fewer = other.exploredCount - leg.exploredCount;
+    row.innerHTML = `
+      <th scope="row"><span class="leg-num">${index + 1}</span><span class="leg-route"></span></th>
+      <td>${formatNumber(leg.cost)}</td>
+      <td class="astar">${leg.exploredCount}${fewer > 0 ? `<small>−${fewer}</small>` : ""}</td>
+      <td>${other.exploredCount}</td>`;
+    row.querySelector(".leg-route").textContent = `${nodeName(leg.from)} to ${nodeName(leg.to)}`;
+    row.addEventListener("click", () => jumpToLeg(index));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        jumpToLeg(index);
+      }
+    });
+    elements.legsBody.append(row);
+  });
+  elements.legsWrap.hidden = false;
+}
+
+function renderMiniMap(svg, result, algorithm) {
+  svg.replaceChildren();
+  const bounds = graphBounds();
+  svg.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+  if (graph.nodes.length === 0) return;
+  const scale = bounds.width / 1000;
+  const explored = new Set();
+  for (const leg of result?.legs ?? []) for (const id of leg.searchLog.at(-1)?.closedSet ?? []) explored.add(id);
+  for (const edge of graph.edges) {
+    const from = nodeById(edge.from);
+    const to = nodeById(edge.to);
+    if (from && to) svg.append(svgElement("line", { class: "mini-road", x1: from.x, y1: from.y, x2: to.x, y2: to.y, "stroke-width": 5 * scale }));
+  }
+  if (result?.path?.length > 1) {
+    const points = result.path.map(nodeById).map((node) => `${node.x},${node.y}`).join(" ");
+    svg.append(svgElement("polyline", { class: "mini-route", points, "stroke-width": 9 * scale }));
+  }
+  for (const node of graph.nodes) {
+    const isExplored = explored.has(node.id);
+    svg.append(svgElement("circle", {
+      class: `mini-node ${node.type}${isExplored ? ` explored ${algorithm}` : ""}`,
+      cx: node.x, cy: node.y, r: (isExplored ? 17 : node.type === "junction" ? 8 : 12) * scale
+    }));
+  }
+}
+
+// pan gestures
 
 function beginPan(event) {
   if (event.button !== 0) return;
   if (event.target.closest(".node-group, .edge-group")) return;
   const point = rootCoordinates(event);
-  panGesture = {
-    pointerId: event.pointerId,
-    startX: point.x,
-    startY: point.y,
-    viewX: view.x,
-    viewY: view.y,
-    moved: false
-  };
+  panGesture = { pointerId: event.pointerId, startX: point.x, startY: point.y, viewX: view.x, viewY: view.y, moved: false };
   elements.map.setPointerCapture(event.pointerId);
 }
 
@@ -683,11 +1120,31 @@ function endPan(event) {
   panGesture = null;
 }
 
+//help
+
+function toggleHelp(force) {
+  const open = force ?? elements.helpPanel.hidden;
+  elements.helpPanel.hidden = !open;
+  elements.helpButton.setAttribute("aria-expanded", String(open));
+}
+
+// wiring
+
 $("#generateButton").addEventListener("click", loadDemoMap);
+elements.shuffleSeed.addEventListener("click", shuffleSeed);
+for (const input of [elements.nodeCount, elements.edgeCount, elements.addressCount, elements.seed]) {
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loadDemoMap();
+  });
+}
+elements.weightMode.addEventListener("change", loadDemoMap);
 $("#clearButton").addEventListener("click", clearMap);
-$("#resetButton").addEventListener("click", () => resetSimulation(true));
-elements.runButton.addEventListener("click", runSimulation);
-elements.pauseButton.addEventListener("click", togglePause);
+elements.resetButton.addEventListener("click", () => clearRun());
+elements.runButton.addEventListener("click", dispatch);
+elements.pauseButton.addEventListener("click", togglePlay);
+$$(".watch-toggle [data-algorithm]").forEach((button) =>
+  button.addEventListener("click", () => setWatching(button.dataset.algorithm)));
+elements.speed.addEventListener("input", () => { elements.speedOutput.textContent = `${speed()}×`; });
 elements.map.addEventListener("click", handleMapClick);
 elements.map.addEventListener("pointerdown", beginPan);
 elements.map.addEventListener("pointermove", updatePan);
@@ -700,7 +1157,58 @@ elements.map.addEventListener("wheel", (event) => {
 elements.zoomOutButton.addEventListener("click", () => zoomView(1 / 1.2));
 elements.zoomInButton.addEventListener("click", () => zoomView(1.2));
 elements.fitViewButton.addEventListener("click", fitGraphToView);
-elements.speed.addEventListener("input", () => { elements.speedOutput.textContent = `${speedMultiplier()}×`; });
-$$('.tool-button').forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
+$$(".tool-button").forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
+elements.edgeEditor.addEventListener("submit", saveEdgeWeight);
+elements.edgeCancel.addEventListener("click", closeEdgeEditor);
+elements.edgeEditor.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeEdgeEditor();
+});
+elements.helpButton.addEventListener("click", () => toggleHelp());
+document.addEventListener("click", (event) => {
+  if (!elements.helpPanel.hidden && !event.target.closest("#helpPanel, #helpButton")) toggleHelp(false);
+});
 
+const TOOL_KEYS = { 1: "depot", 2: "house", 3: "junction", 4: "connect" };
+
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const typing = event.target.closest("input, select, textarea");
+  if (event.key === "Escape") {
+    if (!elements.helpPanel.hidden) return toggleHelp(false);
+    if (activeTool) return setTool(null);
+    return;
+  }
+  if (typing) return;
+  const onControl = event.target.closest("button, [role='button'], [tabindex='0']");
+  switch (event.key) {
+    case " ":
+      if (onControl) return;
+      event.preventDefault();
+      if (frames.length > 0) togglePlay(); else dispatch();
+      break;
+    case "Enter":
+      if (onControl) return;
+      dispatch();
+      break;
+    case "ArrowRight": stepBy(1); break;
+    case "ArrowLeft": stepBy(-1); break;
+    case "]": jumpToLeg(Math.min(legStarts.length - 1, currentLegIndex() + 1)); break;
+    case "[": {
+      const leg = currentLegIndex();
+      const atLegStart = leg >= 0 && leg < legStarts.length && frameIndex === legStarts[leg];
+      jumpToLeg(Math.max(0, atLegStart || leg >= legStarts.length ? leg - 1 : leg));
+      break;
+    }
+    case "a": case "A": setWatching("astar"); break;
+    case "d": case "D": setWatching("dijkstra"); break;
+    case "r": case "R": clearRun(); break;
+    case "f": case "F": fitGraphToView(); break;
+    case "?": toggleHelp(); break;
+    default:
+      if (TOOL_KEYS[event.key]) setTool(TOOL_KEYS[event.key]);
+  }
+});
+
+new ResizeObserver(matchViewToStage).observe(elements.mapStage);
+matchViewToStage();
 loadDemoMap();
