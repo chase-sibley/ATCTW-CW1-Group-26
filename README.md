@@ -60,6 +60,7 @@ I was in charge of the random map generator, it produces the map the simulator r
 ### Alistair Bishop
 I was in charge of developing the editable map settings, all input surfaces on the site, functionality of the custom placement of junctions, roads, depots and houses, weight implementation for road distances, van logic and the implementation of the A* and Dijkstra simulations.
 ### Ted Turner
+I was in charge of developing a user interface and implementing it into the source code.
 ### Chase Sibley
 I was in charge of testing and communicating with team members what needed changing. Tests cover the whole scope of the website and
 the functionality of each algorithm.
@@ -68,10 +69,10 @@ the functionality of each algorithm.
 ### Sam Taylor - King:
 #### I gave claude:  to help me  break the generator into steps
 #### It gave me: How alistairs code works 
-#### I used it for: to help me desing how my code intergrates to alistairs
+#### I used it for: to help me deciding how my code integrates to alistairs
 
 #### I gave claude: My code and "SyntaxError: Identifier 'getMap' has already been declared"
-#### It gave me: there was two fucntions called get map after i removemed the duplicate the same eroo happened again , claude pointed out it there was a fucntion call for return createDemoMap(); outside a fucntion.  
+#### It gave me: there was two functions called get map after i removed the duplicate the same eroo happened again , claude pointed out it there was a function call for return createDemoMap(); outside a function.  
 #### I used it for: Fixed the bugged code and the script then ran 
 
 ### Alistair Bishop:
@@ -85,12 +86,15 @@ The source code for the project
 #### It gave me: 
 Types of tests with examples and how to run tests in JavaScript using Node
 #### I used it for:
-Writing and planning different tests for the alorithm and functions used for the project.
+Writing and planning different tests for the algorithm and functions used for the project.
 
 ### Ted Turner: 
 #### I gave claude:
+prompts of what to look for in similar sites and prompts about how to implement ideas
 #### It gave me: 
+research on good UI practise and tutorials on how to design certain UI features
 #### I used it for:
+Researching practised UI behaviour from existing websites and how to intuitively design UI so that the experience flows
 
 
 ### Oliver Methold:
