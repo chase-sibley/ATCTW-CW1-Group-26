@@ -14,7 +14,7 @@ A delivery van needs to find the most optimal and fastest route to visit each ad
 
 ## Deployement
 ### Installation
-### How to access
+### How to access - https://atctw-group.vercel.app/
 ### How to run tests
 Tests are run using Node (https://nodejs.org).
 In terminal, run:
