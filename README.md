@@ -44,11 +44,11 @@ The product runs in the browser and has no packages to install. You only need [N
    npm start
    ```
 
-3. Open http://127.0.0.1:4173 in a web browser.
+3. Open the local IP in a web browser.
 
 ### How to Access
 
-The product is deployed at https://atctw-group.vercel.app/ and needs no installation. The local version above works offline.
+The project is deployed at https://atctw-group.vercel.app/ and needs no installation. The local version above works offline.
 
 ### How to Run Tests
 
@@ -247,10 +247,30 @@ Different tests on the website included:
 
 ### Results
 
-| Test type | Result |
-| --- | --- |
-| Automated tests | All pass |
-| Manual testing | All working and no known issues |
+**Automated tests:** 41 tests, all pass (`node --test tests/*.test.js`).
+
+| Test | Expected | Actual |
+| --- | --- | --- |
+| Cheaper route through more nodes (direct road costs 10, detour costs 6) | Path A, B, C, D with cost 6 | Matches |
+| No route to the goal | Empty path and cost infinity | Matches |
+| A\* and Dijkstra against Floyd–Warshall (an independent shortest-path method) on 300 random maps | Same route cost every time | All equal |
+| Exact stop order against a brute force check on 40 random maps | Same total cost | All equal |
+
+**A\* against Dijkstra:** average over 50 searches on random maps at each size. Both always found the same route cost.
+
+| Nodes | A\* nodes explored | Dijkstra nodes explored |
+| --- | --- | --- |
+| 50 | 6.1 | 22.9 |
+| 100 | 11.2 | 43.3 |
+| 200 | 23.8 | 82.2 |
+| 400 | 40.1 | 155.3 |
+| 1000 | 38.3 | 391.7 |
+
+A\* explores about 4 to 10 times fewer nodes, and the gap grows as the map gets bigger. The time per search is about the same, because A\* does extra work for the heuristic.
+
+**Scaling with addresses:** planning 8 addresses on a 200-node map takes about 58 ms because every stop order is tried. At 9 addresses it switches to nearest-neighbour and takes about 6 ms.
+
+**Manual testing:** (write what you actually tested, and any bug you found)
 
 ---
 
