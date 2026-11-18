@@ -57,6 +57,7 @@ Node: https://nodejs.org
 ## Member Statements
 ### Oliver Methold
 ### Sam Taylor-King
+I was in charge of the random map generator, it produces the map the simulator runs on and takes the users settings from the website such as number of nodes, and returns a map in the format. 
 ### Alistair Bishop
 ### Ted Turner
 ### Chase Sibley
